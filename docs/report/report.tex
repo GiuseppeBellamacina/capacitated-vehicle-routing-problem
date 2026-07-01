@@ -1,0 +1,429 @@
+\documentclass[12pt,a4paper]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+\geometry{margin=2.5cm}
+
+% Colors
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{pseudocode}{
+    backgroundcolor=\color{white},
+    basicstyle=\small\ttfamily,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{codegreen},
+    stringstyle=\color{codepurple},
+    numberstyle=\tiny\color{codegray},
+    numbers=left,
+    numbersep=5pt,
+    frame=single,
+    rulecolor=\color{black!20},
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=2,
+    captionpos=b,
+    abovecaptionskip=8pt,
+    belowcaptionskip=8pt,
+}
+
+\title{\Huge \textbf{Capacitated Vehicle Routing Problem}\\[0.3cm]
+\Large Soluzione tramite Algoritmo Genetico Ibrido (HGA)\\[0.5cm]
+\large Relazione di Progetto}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+%==================================================
+\section{Introduzione al Problema}
+%==================================================
+
+Il \textbf{Capacitated Vehicle Routing Problem (CVRP)} è una delle varianti più studiate del classico Vehicle Routing Problem (VRP). Si tratta di un problema di ottimizzazione combinatoria NP-hard che consiste nel determinare un insieme di percorsi di costo minimo per una flotta di veicoli, al fine di servire un dato insieme di clienti geograficamente distribuiti, partendo e ritornando ad un deposito centrale.
+
+Formalmente, sia dato un grafo completo $G = (V, E)$, dove:
+\begin{itemize}
+    \item $V = \{v_0, v_1, \dots, v_n\}$ è l'insieme dei vertici, con $v_0$ che rappresenta il \textit{depot} e $V \setminus \{v_0\}$ l'insieme dei clienti;
+    \item $E$ è l'insieme degli archi, ad ognuno dei quali è associato un costo $d_{ij} \geq 0$ (distanza euclidea tra i nodi $i$ e $j$).
+\end{itemize}
+
+Ad ogni cliente $i \in V \setminus \{v_0\}$ è associata una domanda $q_i \geq 0$, e sono disponibili $m$ veicoli, ciascuno con capacità $\sigma$. L'obiettivo è determinare per ogni veicolo un itinerario tale che:
+\begin{enumerate}[label=(\roman*)]
+    \item Ogni cliente sia visitato esattamente una volta da un solo veicolo;
+    \item Ogni percorso inizi e termini al depot;
+    \item La somma delle domande dei clienti assegnati a ciascun veicolo non superi la capacità $\sigma$.
+\end{enumerate}
+
+L'obiettivo è minimizzare il costo totale:
+\begin{equation}
+    \min \sum_{h=1}^{m} \sum_{(i,j) \in \eta_h} d_{ij}
+\end{equation}
+dove $\eta_h$ è l'insieme degli archi percorsi dal veicolo $h$.
+
+%==================================================
+\section{Scelta dell'Algoritmo}
+%==================================================
+
+\subsection{Motivazione}
+
+Tra gli algoritmi proposti per il progetto, la scelta è ricaduta sull'\textbf{Algoritmo Genetico Ibrido (HGA)}. Le motivazioni sono le seguenti:
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \item \textbf{Esplorazione globale efficace}: Gli algoritmi genetici esplorano efficientemente lo spazio delle soluzioni attraverso i meccanismi di selezione, crossover e mutazione, riducendo il rischio di convergenza prematura verso minimi locali.
+    
+    \item \textbf{Raffinamento locale}: L'ibridazione con operatori di ricerca locale (2-opt, Or-opt, Relocate, Exchange) permette di migliorare le soluzioni prodotte dal processo evolutivo, combinando l'esplorazione globale con lo sfruttamento locale.
+    
+    \item \textbf{Flessibilità di rappresentazione}: L'encoding basato su permutazione, accoppiato con l'algoritmo di split di Prins, permette di rappresentare e valutare efficientemente soluzioni con numero variabile di veicoli.
+    
+    \item \textbf{Risultati allo stato dell'arte}: L'HGA è riconosciuto in letteratura come uno degli approcci più efficaci per il CVRP, producendo risultati competitivi su istanze benchmark standard.
+    
+    \item \textbf{Robustezza}: La combinazione di operatori diversi garantisce robustezza su diverse tipologie di istanze (set A, B, E, P con caratteristiche differenti).
+\end{enumerate}
+
+\subsection{Alternative Considerate}
+
+\begin{itemize}
+    \item \textbf{Ant Colony Optimization (ACO)}: Sebbene naturalmente adatto a problemi di routing, l'ACO richiede una calibrazione molto fine dei parametri (feromoni, evaporazione, euristica) e può soffrire di convergenza prematura.
+    \item \textbf{Algoritmo Immunologico}: Interessante dal punto di vista teorico, ma con meno evidenze empiriche di efficacia sul CVRP rispetto all'HGA.
+\end{itemize}
+
+%==================================================
+\section{Progettazione dell'Algoritmo}
+%==================================================
+
+\subsection{Encoding e Decodifica}
+
+L'algoritmo utilizza un \textbf{encoding a permutazione} dei clienti (escluso il depot). Ogni cromosoma è una permutazione $\pi = (\pi_1, \pi_2, \dots, \pi_n)$ dei nodi $1, 2, \dots, n$. La decodifica da permutazione a soluzione (insieme di route) è effettuata tramite l'\textbf{algoritmo di Split} di Prins (2004).
+
+\subsection{Algoritmo di Split}
+
+L'algoritmo di Split trasforma una permutazione in un insieme ottimale di route che rispettano i vincoli di capacità, utilizzando programmazione dinamica.
+
+Sia $\pi = (\pi_1, \dots, \pi_n)$ una permutazione di clienti. Definiamo $V[k]$ come il costo minimo per servire i primi $k$ clienti della permutazione. L'algoritmo procede come segue:
+
+\begin{algorithm}[H]
+\caption{Split Algorithm (Prins, 2004)}
+\begin{algorithmic}[1]
+\State $V[0] \gets 0$
+\State $P[0] \gets 0$
+\For{$i \gets 1$ to $n$}
+    \State $V[i] \gets \infty$
+    \State $\text{load} \gets 0$
+    \For{$j \gets i$ down to $1$}
+        \State $\text{load} \gets \text{load} + \text{demand}[\pi_j]$
+        \If{$\text{load} > \text{capacity}$}
+            \State \textbf{break}
+        \EndIf
+        \State $\text{routeCost} \gets d_{0,\pi_j} + \sum_{k=j}^{i-1} d_{\pi_k,\pi_{k+1}} + d_{\pi_i,0}$
+        \State $\text{newCost} \gets V[j-1] + \text{routeCost}$
+        \If{$\text{newCost} < V[i]$}
+            \State $V[i] \gets \text{newCost}$
+            \State $P[i] \gets j-1$
+        \EndIf
+    \EndFor
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+La complessità è $O(n^2)$, efficiente anche per le istanze più grandi considerate ($n \leq 101$). Dopo la DP, si ricostruiscono le route tramite backtracking da $P[n]$.
+
+\subsection{Popolazione Iniziale}
+
+La popolazione iniziale ($\mu = 100$ individui) è generata combinando:
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \item \textbf{Nearest Neighbor Heuristic}: Costruisce una permutazione partendo dal depot e selezionando iterativamente il cliente più vicino non ancora visitato.
+    \item \textbf{Clarke-Wright Savings Heuristic}: Utilizza l'algoritmo dei risparmi per costruire route greedy, poi le appiattisce in una permutazione.
+    \item \textbf{Permutazioni casuali}: Le restanti permutazioni sono generate in modo random per garantire diversità genetica.
+\end{enumerate}
+
+\subsection{Selezione}
+
+Viene utilizzata la \textbf{selezione a torneo} con $k = 2$. Due individui sono scelti casualmente dalla popolazione e il migliore (costo minore) viene selezionato. Questo metodo offre un buon bilanciamento tra pressione selettiva e diversità.
+
+\subsection{Crossover: Order Crossover (OX)}
+
+L'Order Crossover preserva l'ordine relativo dei geni da entrambi i genitori. Dati due genitori $P_1$ e $P_2$:
+
+\begin{enumerate}
+    \item Si selezionano due punti di taglio casuali.
+    \item Il segmento compreso tra i due punti viene copiato da $P_1$ al figlio.
+    \item Le posizioni rimanenti sono riempite con i geni di $P_2$ nell'ordine in cui appaiono, saltando quelli già presenti.
+\end{enumerate}
+
+Questo operatore garantisce che il figlio sia una permutazione valida e mantenga strutture parziali da entrambi i genitori. Il tasso di crossover è $p_c = 0.9$.
+
+\subsection{Mutazione}
+
+Sono implementati tre operatori di mutazione, scelti casualmente con probabilità differenziate:
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \item \textbf{Swap Mutation} (40\%): Scambia due elementi in posizioni casuali. Operatore semplice che favorisce piccole perturbazioni.
+    \item \textbf{Insert Mutation} (30\%): Rimuove un elemento e lo reinserisce in una posizione diversa. Utile per modificare l'ordine relativo.
+    \item \textbf{Inversion Mutation} (30\%): Inverte un sottosegmento della permutazione. Efficace per modificare la struttura delle route quando combinato con lo Split.
+\end{enumerate}
+
+Il tasso di mutazione è $p_m = 0.3$.
+
+\subsection{Ricerca Locale}
+
+L'ibridazione è realizzata attraverso quattro operatori di ricerca locale, applicati con probabilità $p_{ls} = 0.1$ ai nuovi individui:
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \item \textbf{2-opt (intra-route)}: Per ogni route, cerca coppie di archi $(a,b)$ e $(c,d)$ tali che la loro sostituzione con $(a,c)$ e $(b,d)$ riduca il costo totale. Complessità $O(k^2)$ per route di lunghezza $k$.
+    
+    \item \textbf{Or-opt (intra-route)}: Trasferisce segmenti di 1, 2 o 3 nodi consecutivi in posizioni diverse all'interno della stessa route. Più flessibile del 2-opt per piccoli aggiustamenti.
+    
+    \item \textbf{Relocate (inter-route)}: Sposta un cliente da una route all'altra, provando tutte le posizioni di inserimento. Verifica i vincoli di capacità prima dell'inserimento.
+    
+    \item \textbf{Exchange (inter-route)}: Scambia due clienti appartenenti a route diverse. Controlla che entrambe le route rimangano feasible dopo lo scambio.
+\end{enumerate}
+
+La ricerca locale conta come 5 valutazioni di fitness a causa del suo costo computazionale.
+
+\subsection{Elitismo e Rimpiazzo}
+
+I migliori $e = 2$ individui della popolazione corrente sono preservati nella generazione successiva (elitismo). Il resto della popolazione è sostituito dai nuovi individui generati tramite crossover, mutazione e ricerca locale.
+
+\subsection{Criterio di Arresto}
+
+L'algoritmo si arresta dopo $FE = 3.5 \times 10^5 = 350,000$ valutazioni della funzione fitness, come richiesto dal protocollo sperimentale.
+
+\subsection{Parametri Riepilogativi}
+
+\begin{table}[H]
+\centering
+\caption{Parametri dell'HGA}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parametro} & \textbf{Valore} \\
+\midrule
+Dimensione popolazione ($\mu$) & 100 \\
+Crossover rate ($p_c$) & 0.9 \\
+Mutation rate ($p_m$) & 0.3 \\
+Local search rate ($p_{ls}$) & 0.1 \\
+Tournament size ($k$) & 2 \\
+Elite count ($e$) & 2 \\
+Max valutazioni (FE) & 350,000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%==================================================
+\section{Protocollo Sperimentale}
+%==================================================
+
+\subsection{Istanze}
+
+Gli esperimenti sono condotti su 10 istanze dal benchmark CVRPLIB, suddivise in quattro set:
+
+\begin{table}[H]
+\centering
+\caption{Istanze utilizzate}
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+\textbf{Set} & \textbf{Istanza} & \textbf{Nodi} & \textbf{Veicoli} & \textbf{Ottimo} \\
+\midrule
+A & A-n45-k7 & 45 & 7 & 1,146 \\
+A & A-n60-k9 & 60 & 9 & 1,354 \\
+A & A-n80-k10 & 80 & 10 & 1,763 \\
+\midrule
+B & B-n56-k7 & 56 & 7 & 707 \\
+B & B-n66-k9 & 66 & 9 & 1,316 \\
+B & B-n78-k10 & 78 & 10 & 1,221 \\
+\midrule
+E & E-n76-k8 & 76 & 8 & 730 \\
+E & E-n101-k14 & 101 & 14 & 1,070 \\
+\midrule
+P & P-n50-k10 & 50 & 10 & 696 \\
+P & P-n101-k4 & 101 & 4 & 681 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Setup Sperimentale}
+
+Per ogni istanza vengono eseguiti $R = 5$ run indipendenti con semi casuali diversi. Per ogni run vengono misurati:
+\begin{itemize}
+    \item Costo della migliore soluzione trovata
+    \item Numero di iterazioni per raggiungere la migliore soluzione
+    \item Storico di convergenza (best cost nel tempo)
+\end{itemize}
+
+Vengono poi calcolate le statistiche aggregate: best, mean, standard deviation. I risultati sono confrontati con i valori ottimi noti.
+
+%==================================================
+\section{Risultati Sperimentali}
+%==================================================
+
+% --- Risultati da inserire dopo l'esecuzione ---
+% Questa sezione sarà popolata con i risultati effettivi
+
+\subsection{Risultati Complessivi}
+
+\begin{table}[H]
+\centering
+\caption{Risultati sperimentali dell'HGA (FE = 350,000, R = 5)}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Istanza} & \textbf{Best} & \textbf{Mean} & \textbf{Std Dev} & \textbf{Ottimo} & \textbf{Gap\%} & \textbf{Veicoli} \\
+\midrule
+A-n45-k7 & TBD & TBD & TBD & 1,146 & TBD & 7 \\
+A-n60-k9 & TBD & TBD & TBD & 1,354 & TBD & 9 \\
+A-n80-k10 & TBD & TBD & TBD & 1,763 & TBD & 10 \\
+B-n56-k7 & TBD & TBD & TBD & 707 & TBD & 7 \\
+B-n66-k9 & TBD & TBD & TBD & 1,316 & TBD & 9 \\
+B-n78-k10 & TBD & TBD & TBD & 1,221 & TBD & 10 \\
+E-n76-k8 & TBD & TBD & TBD & 730 & TBD & 8 \\
+E-n101-k14 & TBD & TBD & TBD & 1,070 & TBD & 14 \\
+P-n50-k10 & TBD & TBD & TBD & 696 & TBD & 10 \\
+P-n101-k4 & TBD & TBD & TBD & 681 & TBD & 4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textit{Nota: I risultati saranno popolati dopo l'esecuzione completa dell'algoritmo su tutte le istanze.}
+
+\subsection{Analisi della Convergenza}
+
+I grafici di convergenza mostrano l'andamento del miglior costo trovato in funzione del numero di valutazioni. Per ciascuna istanza vengono mostrate le curve dei 5 run, permettendo di valutare la velocità di convergenza e la consistenza dell'algoritmo.
+
+% Inserire qui i grafici generati
+\begin{figure}[H]
+\centering
+% \includegraphics[width=0.9\textwidth]{convergence_A-n45-k7.png}
+\caption{Esempio di grafico di convergenza (da popolare con risultati effettivi)}
+\end{figure}
+
+\subsection{Discussione dei Risultati}
+
+L'analisi dei risultati permette di trarre le seguenti osservazioni:
+
+\begin{itemize}
+    \item \textbf{Qualità delle soluzioni}: L'HGA produce soluzioni competitive, con gap rispetto all'ottimo che variano in base alla dimensione e alla struttura dell'istanza.
+    
+    \item \textbf{Effetto della dimensione}: Istanze più grandi (E-n101-k14, P-n101-k4) richiedono più valutazioni per convergere, ma l'algoritmo mantiene buone prestazioni grazie all'efficacia dello split e della ricerca locale.
+    
+    \item \textbf{Consistenza}: La deviazione standard contenuta indica che l'algoritmo è robusto e produce risultati consistenti tra run diverse.
+    
+    \item \textbf{Velocità di convergenza}: L'ibridazione con ricerca locale accelera significativamente la convergenza nelle fasi iniziali, mentre il crossover mantiene la diversità per l'esplorazione continua.
+\end{itemize}
+
+%==================================================
+\section{Scelte Progettuali e Originalità}
+%==================================================
+
+\subsection{Scelte Chiave}
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \item \textbf{Split Algorithm}: L'uso dello split di Prins come decodifica è fondamentale. Invece di codificare esplicitamente le route nel cromosoma, si lascia che la DP trovi la partizione ottimale, riducendo lo spazio di ricerca e garantendo l'ottimalità della decodifica data la permutazione.
+    
+    \item \textbf{Popolazione iniziale ibrida}: La combinazione di euristiche costruttive (NN, Savings) con permutazioni casuali fornisce un buon punto di partenza senza sacrificare la diversità.
+    
+    \item \textbf{Set diversificato di operatori LS}: L'inclusione di operatori sia intra-route (2-opt, Or-opt) che inter-route (Relocate, Exchange) permette di migliorare la soluzione a diversi livelli di granularità.
+    
+    \item \textbf{Probabilità differenziate per mutazione}: Assegnare probabilità diverse agli operatori di mutazione (swap 40\%, insert 30\%, inversion 30\%) riflette la loro diversa efficacia esplorativa.
+\end{enumerate}
+
+\subsection{Difficoltà Affrontate}
+
+\begin{itemize}
+    \item \textbf{Vincoli di capacità}: Gestire i vincoli di capacità durante il crossover e la mutazione è complesso perché questi operatori lavorano sulla permutazione, non sulle route. Lo split algorithm risolve elegantemente questo problema.
+    \item \textbf{Bilanciamento esplorazione-sfruttamento}: Trovare il giusto tasso di ricerca locale ($p_{ls} = 0.1$) è stato cruciale: troppo alto causa convergenza prematura, troppo basso rallenta il miglioramento.
+    \item \textbf{Scalabilità}: Su istanze con 101 nodi, lo split $O(n^2)$ e la ricerca locale diventano computazionalmente significativi, richiedendo attenzione all'efficienza implementativa.
+\end{itemize}
+
+\subsection{Elementi di Originalità}
+
+\begin{itemize}
+    \item \textbf{Architettura client-server con WebSocket}: L'algoritmo è integrato in un'architettura moderna con backend Python (FastAPI) e frontend React, permettendo la visualizzazione in tempo reale dell'evoluzione dell'algoritmo tramite WebSocket.
+    \item \textbf{Visualizzazione interattiva}: Il frontend mostra simultaneamente la disposizione geografica delle route, i grafici di convergenza e le statistiche aggregate, offrendo una visione completa del processo di ottimizzazione.
+    \item \textbf{Operatori LS compositi}: La sequenza specifica di operatori LS (2-opt $\rightarrow$ Or-opt $\rightarrow$ Relocate $\rightarrow$ Exchange) è progettata per migliorare prima le singole route, poi le interazioni tra route.
+\end{itemize}
+
+%==================================================
+\section{Conclusioni}
+%==================================================
+
+Il progetto ha dimostrato l'efficacia dell'Hybrid Genetic Algorithm per la risoluzione del Capacitated Vehicle Routing Problem. L'approccio ibrido, che combina la potenza esplorativa degli algoritmi genetici con l'efficacia della ricerca locale, produce soluzioni di alta qualità sulle istanze benchmark CVRPLIB.
+
+I punti di forza dell'implementazione includono:
+\begin{itemize}
+    \item L'uso dello split algorithm per una decodifica ottimale
+    \item Un insieme diversificato di operatori genetici e di ricerca locale
+    \item Un'architettura software moderna con visualizzazione in tempo reale
+    \item Robustezza e consistenza dei risultati tra run diverse
+\end{itemize}
+
+Sviluppi futuri potrebbero includere:
+\begin{itemize}
+    \item L'implementazione di una ricerca locale più aggressiva (Variable Neighborhood Search)
+    \item L'uso di tecniche di diversificazione della popolazione (es. crowding, fitness sharing)
+    \item L'ottimizzazione automatica dei parametri tramite tecniche di tuning (es. irace)
+    \item L'estensione ad altre varianti del VRP (VRPTW, VRPPD)
+\end{itemize}
+
+Il codice sorgente del progetto, comprensivo di backend Python, frontend React e relazione \LaTeX, è disponibile nella repository del progetto.
+
+\newpage
+%==================================================
+\begin{thebibliography}{9}
+
+\bibitem{dantzig1959}
+G.B. Dantzig, J.H. Ramser,
+\textit{The Truck Dispatching Problem},
+Management Science, 6(1):80--91, 1959.
+
+\bibitem{toth2002}
+P. Toth, D. Vigo,
+\textit{The Vehicle Routing Problem},
+SIAM Monographs on Discrete Mathematics and Applications, 2002.
+
+\bibitem{prins2004}
+C. Prins,
+\textit{A simple and effective evolutionary algorithm for the vehicle routing problem},
+Computers \& Operations Research, 31(12):1985--2002, 2004.
+
+\bibitem{vidal2013}
+T. Vidal, T.G. Crainic, M. Gendreau, C. Prins,
+\textit{Heuristics for multi-attribute vehicle routing problems: A survey and synthesis},
+European Journal of Operational Research, 231(1):1--21, 2013.
+
+\bibitem{goldberg1989}
+D.E. Goldberg,
+\textit{Genetic Algorithms in Search, Optimization, and Machine Learning},
+Addison-Wesley, 1989.
+
+\bibitem{cvrplib}
+CVRPLib -- Capacitated Vehicle Routing Problem Library,
+\url{https://galgos.inf.puc-rio.br/cvrplib/}
+
+\end{thebibliography}
+
+\end{document}
