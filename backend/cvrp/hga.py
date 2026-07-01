@@ -18,11 +18,8 @@ from typing import Callable
 from .instance import CVRPInstance, compute_distance_matrix
 from .utils import route_demand
 from .numba_utils import (
-    route_cost_numba,
-    compute_cost_numba,
     split_numba,
     two_opt_numba,
-    or_opt_numba,
 )
 
 
@@ -111,6 +108,10 @@ class HybridGeneticAlgorithm:
         routes_flat, route_ends, num_routes, cost = split_numba(
             perm_np, self.dist_matrix, self.demands, self.capacity, self.depot
         )
+
+        # If DP returned no feasible split, fall back to greedy
+        if num_routes == 0 or cost > 1e50:
+            return self._greedy_split(permutation)
 
         # Convert flat arrays back to list[list[int]]
         routes = []
@@ -370,19 +371,49 @@ class HybridGeneticAlgorithm:
         return result.tolist()
 
     def _route_cost(self, route: list[int]) -> float:
-        """Compute cost of a single route (numba-accelerated)."""
+        """Compute cost of a single route (inline, fast path for or_opt)."""
         if not route:
             return 0.0
-        route_np = np.array(route, dtype=np.int32)
-        return route_cost_numba(route_np, self.dist_matrix, self.depot)
+        dm = self.dist_matrix
+        depot = self.depot
+        cost = dm[depot, route[0]]
+        for k in range(len(route) - 1):
+            cost += dm[route[k], route[k + 1]]
+        cost += dm[route[-1], depot]
+        return cost
 
     def _or_opt(self, route: list[int]) -> list[int]:
-        """Or-opt improvement (numba-accelerated)."""
+        """Or-opt: relocate a segment of 1-3 consecutive nodes (steepest descent, pure Python)."""
         if len(route) < 3:
             return route
-        route_np = np.array(route, dtype=np.int32)
-        result = or_opt_numba(route_np, self.dist_matrix, self.depot)
-        return result.tolist()
+        best = route[:]
+        best_cost = self._route_cost(best)
+        improved = True
+
+        while improved:
+            improved = False
+            best_move: list[int] | None = None
+            best_move_cost = best_cost
+
+            for seg_len in (1, 2, 3):
+                for i in range(len(best) - seg_len + 1):
+                    segment = best[i : i + seg_len]
+                    remaining = best[:i] + best[i + seg_len :]
+                    for j in range(len(remaining) + 1):
+                        if i <= j <= i + seg_len:
+                            continue
+                        new_route = remaining[:j] + segment + remaining[j:]
+                        new_cost = self._route_cost(new_route)
+                        if new_cost < best_move_cost - 1e-8:
+                            best_move_cost = new_cost
+                            best_move = new_route
+
+            if best_move is not None:
+                best = best_move
+                best_cost = best_move_cost
+                improved = True
+
+        return best
 
     def _relocate(self, routes: list[list[int]]) -> list[list[int]]:
         """Inter-route relocate: move a customer from one route to another (steepest descent)."""
