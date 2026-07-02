@@ -20,6 +20,7 @@ from .numba_utils import (
     split_numba,
     two_opt_numba,
     or_opt_numba,
+    order_crossover_numba,
 )
 
 
@@ -304,7 +305,12 @@ class HybridGeneticAlgorithm:
     # --- Selection ---
 
     def tournament_select(self, population: list[Solution]) -> Solution:
-        """Tournament selection: pick best of k random individuals."""
+        """Tournament selection: pick best of k random individuals (optimized for k=2)."""
+        if self.tournament_size == 2:
+            n = len(population)
+            s1 = population[random.randrange(n)]
+            s2 = population[random.randrange(n)]
+            return s1 if s1.cost < s2.cost else s2
         candidates = random.sample(population, self.tournament_size)
         return min(candidates, key=lambda s: s.cost)
 
@@ -326,55 +332,59 @@ class HybridGeneticAlgorithm:
         if n < 2:
             return p1[:] if p1 else p2[:]
 
-        # Select two crossover points
-        cx1, cx2 = sorted(random.sample(range(n), 2))
+        # Fast O(1) sampling of two unique indices
+        cx1 = random.randrange(n)
+        cx2 = random.randrange(n - 1)
+        if cx2 >= cx1:
+            cx2 += 1
+        else:
+            cx1, cx2 = cx2, cx1
 
-        # Child inherits segment from parent1
-        child = [-1] * n
-        child[cx1 : cx2 + 1] = p1[cx1 : cx2 + 1]
+        # Convert to numpy arrays and call JIT crossover
+        p1_np = np.array(p1, dtype=np.int32)
+        p2_np = np.array(p2, dtype=np.int32)
+        child_np = order_crossover_numba(p1_np, p2_np, cx1, cx2)
 
-        # Fill remaining positions with genes from parent2 in order
-        inherited = set(child[cx1 : cx2 + 1])
-        idx = (cx2 + 1) % n
-        p2_idx = (cx2 + 1) % n
-
-        for _ in range(n - (cx2 - cx1 + 1)):
-            while p2[p2_idx] in inherited:
-                p2_idx = (p2_idx + 1) % n
-            child[idx] = p2[p2_idx]
-            inherited.add(p2[p2_idx])
-            idx = (idx + 1) % n
-            p2_idx = (p2_idx + 1) % n
-
-        return child
+        return child_np.tolist()
 
     # --- Mutation Operators ---
 
     def swap_mutation(self, perm: list[int]) -> list[int]:
-        """Swap two random positions."""
-        if len(perm) < 2:
+        """Swap two random positions (optimized index selection)."""
+        n = len(perm)
+        if n < 2:
             return perm
-        i, j = random.sample(range(len(perm)), 2)
+        i = random.randrange(n)
+        j = random.randrange(n - 1)
+        if j >= i:
+            j += 1
         perm = perm[:]
         perm[i], perm[j] = perm[j], perm[i]
         return perm
 
     def insert_mutation(self, perm: list[int]) -> list[int]:
         """Remove element at i and insert at j."""
-        if len(perm) < 2:
+        n = len(perm)
+        if n < 2:
             return perm
-        i = random.randrange(len(perm))
-        j = random.randrange(len(perm))
+        i = random.randrange(n)
+        j = random.randrange(n)
         perm = perm[:]
         val = perm.pop(i)
         perm.insert(j, val)
         return perm
 
     def inversion_mutation(self, perm: list[int]) -> list[int]:
-        """Reverse a subsequence."""
-        if len(perm) < 2:
+        """Reverse a subsequence (optimized index selection)."""
+        n = len(perm)
+        if n < 2:
             return perm
-        i, j = sorted(random.sample(range(len(perm)), 2))
+        i = random.randrange(n)
+        j = random.randrange(n - 1)
+        if j >= i:
+            j += 1
+        else:
+            i, j = j, i
         perm = perm[:]
         perm[i : j + 1] = reversed(perm[i : j + 1])
         return perm
@@ -420,7 +430,9 @@ class HybridGeneticAlgorithm:
         return result.tolist()
 
     def _relocate(self, routes: list[list[int]]) -> list[list[int]]:
-        """Inter-route relocate: move a customer from one route to another (steepest descent)."""
+        """Inter-route relocate: move a customer from one route to another (steepest descent).
+        Uses pre-computed route loads and index-only move tracking to avoid O(n) route_demand
+        calls and deep copies in the inner loop."""
         if len(routes) < 2:
             return routes
 
@@ -429,61 +441,75 @@ class HybridGeneticAlgorithm:
         improved = True
         max_iter = self.local_search_max_iter
         iter_count = 0
+        depot = self.depot
+        dm = self.dist_matrix
+        demands = self.demands
+
+        # Pre-compute route loads once — O(total_customers) instead of O(n) per inner iteration
+        route_loads = [sum(demands[n] for n in r) for r in best]
 
         while improved and (max_iter <= 0 or iter_count < max_iter):
             iter_count += 1
             improved = False
-            best_move: list[list[int]] | None = None
             best_move_cost = best_cost
+            best_move_info = None  # (ri, fi, rj, pos) — no deep copies
 
             for ri, route_from in enumerate(best):
                 if len(route_from) < 1:
                     continue
                 for fi, node in enumerate(route_from):
-                    demand = self.demands[node]
+                    demand = demands[node]
+
+                    # O(1) delta on route_from by removing 'node'
+                    prev_from = route_from[fi - 1] if fi > 0 else depot
+                    next_from = route_from[fi + 1] if fi < len(route_from) - 1 else depot
+                    if len(route_from) == 1:
+                        delta_from = -(dm[depot, node] + dm[node, depot])
+                    else:
+                        delta_from = dm[prev_from, next_from] - (dm[prev_from, node] + dm[node, next_from])
+
                     for rj, route_to in enumerate(best):
                         if ri == rj:
                             continue
-                        if route_demand(route_to, self.demands) + demand > self.capacity:
+                        # O(1) capacity check using pre-computed loads
+                        if route_loads[rj] + demand > self.capacity:
                             continue
-                        
-                        # Compute base cost of these two routes before modification
-                        cost_before = self._route_cost(route_from) + self._route_cost(route_to)
-                        
-                        # In-place modification: move node from route_from to route_to
-                        route_from.pop(fi)
-                        cost_from_after = self._route_cost(route_from)
-                        
+
                         for pos in range(len(route_to) + 1):
-                            # Granular search check: only insert adjacent to depot or a granular neighbor
+                            # Granular search filter
                             if self.use_granular_search:
-                                prev_node = route_to[pos - 1] if pos > 0 else 0
-                                next_node = route_to[pos] if pos < len(route_to) else 0
-                                if (prev_node != 0 and prev_node not in self.granular_neighbors[node]) and \
-                                   (next_node != 0 and next_node not in self.granular_neighbors[node]):
+                                pn = route_to[pos - 1] if pos > 0 else 0
+                                nn = route_to[pos] if pos < len(route_to) else 0
+                                if (pn != 0 and pn not in self.granular_neighbors[node]) and \
+                                   (nn != 0 and nn not in self.granular_neighbors[node]):
                                     continue
 
-                            route_to.insert(pos, node)
-                            cost_to_after = self._route_cost(route_to)
-                            
-                            delta = (cost_from_after + cost_to_after) - cost_before
-                            new_cost = best_cost + delta
-                            
+                            # O(1) delta on route_to by inserting 'node'
+                            prev_node = route_to[pos - 1] if pos > 0 else depot
+                            next_node = route_to[pos] if pos < len(route_to) else depot
+                            delta_to = dm[prev_node, node] + dm[node, next_node] - dm[prev_node, next_node]
+
+                            new_cost = best_cost + delta_from + delta_to
+
                             if new_cost < best_move_cost - 1e-8:
                                 best_move_cost = new_cost
-                                best_move = [r[:] for r in best]
-                            route_to.pop(pos)
-                        route_from.insert(fi, node)  # Restore original state
+                                best_move_info = (ri, fi, rj, pos)
 
-            if best_move is not None:
-                best = best_move
+            if best_move_info is not None:
+                ri, fi, rj, pos = best_move_info
+                node = best[ri].pop(fi)
+                # Adjust insertion index if moving within later route
+                best[rj].insert(pos, node)
+                route_loads[ri] -= demands[node]
+                route_loads[rj] += demands[node]
                 best_cost = best_move_cost
                 improved = True
 
         return best
 
     def _exchange(self, routes: list[list[int]]) -> list[list[int]]:
-        """Inter-route exchange: swap two customers between routes (steepest descent)."""
+        """Inter-route exchange: swap two customers between routes (steepest descent).
+        Uses pre-computed route loads and index-only move tracking."""
         if len(routes) < 2:
             return routes
 
@@ -492,74 +518,95 @@ class HybridGeneticAlgorithm:
         improved = True
         max_iter = self.local_search_max_iter
         iter_count = 0
+        depot = self.depot
+        dm = self.dist_matrix
+        demands = self.demands
+
+        # Pre-compute route loads once
+        route_loads = [sum(demands[n] for n in r) for r in best]
 
         while improved and (max_iter <= 0 or iter_count < max_iter):
             iter_count += 1
             improved = False
-            best_move: list[list[int]] | None = None
             best_move_cost = best_cost
+            best_move_info = None  # (ri, ai, rj, bj) — no deep copies
 
             for ri, route_a in enumerate(best):
                 for rj, route_b in enumerate(best):
                     if ri >= rj:
                         continue
                     for ai, node_a in enumerate(route_a):
+                        dem_a = demands[node_a]
                         for bj, node_b in enumerate(route_b):
-                            # Granular search check: only swap if nodes are granular neighbors of each other
+                            # Granular search filter
                             if self.use_granular_search:
                                 if node_b not in self.granular_neighbors[node_a] and \
                                    node_a not in self.granular_neighbors[node_b]:
                                     continue
 
-                            dem_a = self.demands[node_a]
-                            dem_b = self.demands[node_b]
-                            load_a = route_demand(route_a, self.demands) - dem_a + dem_b
-                            load_b = route_demand(route_b, self.demands) - dem_b + dem_a
-                            if load_a > self.capacity or load_b > self.capacity:
+                            dem_b = demands[node_b]
+                            # O(1) capacity check using pre-computed loads
+                            if route_loads[ri] - dem_a + dem_b > self.capacity or \
+                               route_loads[rj] - dem_b + dem_a > self.capacity:
                                 continue
-                            
-                            # Compute base cost of these two routes before swap
-                            cost_before = self._route_cost(route_a) + self._route_cost(route_b)
-                            
-                            # In-place swap
-                            route_a[ai] = node_b
-                            route_b[bj] = node_a
-                            cost_after = self._route_cost(route_a) + self._route_cost(route_b)
-                            
-                            delta = cost_after - cost_before
-                            new_cost = best_cost + delta
-                            
+
+                            # O(1) delta computation for swap
+                            prev_a = route_a[ai - 1] if ai > 0 else depot
+                            next_a = route_a[ai + 1] if ai < len(route_a) - 1 else depot
+                            delta_a = (dm[prev_a, node_b] + dm[node_b, next_a]) - \
+                                      (dm[prev_a, node_a] + dm[node_a, next_a])
+
+                            prev_b = route_b[bj - 1] if bj > 0 else depot
+                            next_b = route_b[bj + 1] if bj < len(route_b) - 1 else depot
+                            delta_b = (dm[prev_b, node_a] + dm[node_a, next_b]) - \
+                                      (dm[prev_b, node_b] + dm[node_b, next_b])
+
+                            new_cost = best_cost + delta_a + delta_b
+
                             if new_cost < best_move_cost - 1e-8:
                                 best_move_cost = new_cost
-                                best_move = [r[:] for r in best]
-                            # Restore swap
-                            route_a[ai] = node_a
-                            route_b[bj] = node_b
+                                best_move_info = (ri, ai, rj, bj)
 
-            if best_move is not None:
-                best = best_move
+            if best_move_info is not None:
+                ri, ai, rj, bj = best_move_info
+                node_a = best[ri][ai]
+                node_b = best[rj][bj]
+                best[ri][ai] = node_b
+                best[rj][bj] = node_a
+                route_loads[ri] += demands[node_b] - demands[node_a]
+                route_loads[rj] += demands[node_a] - demands[node_b]
                 best_cost = best_move_cost
                 improved = True
 
         return best
 
-    def local_search(self, solution: Solution) -> Solution:
-        """Apply local search to improve a solution."""
+    def _educate_light(self, solution: Solution) -> Solution:
+        """Light education: apply fast JIT-compiled intra-route operators (2-opt) to all routes."""
         routes = [r[:] for r in solution.routes]
-
-        # 1. Intra-route: 2-opt
         for i in range(len(routes)):
             routes[i] = self._two_opt(routes[i])
+        cost = self._compute_cost(routes)
+        self.evaluations += 1
+        return Solution(routes=routes, cost=cost)
 
-        # 2. Intra-route: Or-opt
+    def local_search(self, solution: Solution) -> Solution:
+        """Full local search: intra-route (2-opt + Or-opt) + inter-route (relocate + exchange).
+        Inter-route operator order is randomized to avoid systematic bias."""
+        routes = [r[:] for r in solution.routes]
+
+        # Intra-route: 2-opt + Or-opt (always in this order, both JIT-compiled)
+        for i in range(len(routes)):
+            routes[i] = self._two_opt(routes[i])
         for i in range(len(routes)):
             routes[i] = self._or_opt(routes[i])
 
-        # 3. Inter-route: relocate
-        routes = self._relocate(routes)
-
-        # 4. Inter-route: exchange
-        routes = self._exchange(routes)
+        # Inter-route: randomize operator order to avoid bias
+        if random.random() < 0.5:
+            routes = self._relocate(routes)
+            routes = self._exchange(routes)
+        else:
+            routes = self._exchange(routes)
+            routes = self._relocate(routes)
 
         # Remove empty routes
         routes = [r for r in routes if r]
@@ -631,7 +678,10 @@ class HybridGeneticAlgorithm:
 
                 child = self.split(child_perm)
 
-                # Local search
+                # Light education: 2-opt on ALL children (fast, JIT-compiled)
+                child = self._educate_light(child)
+
+                # Full local search (inter-route) only at configured rate
                 if random.random() < self.local_search_rate:
                     child = self.local_search(child)
 
@@ -645,6 +695,19 @@ class HybridGeneticAlgorithm:
                 if track_convergence and self.evaluations - last_recorded_evals >= convergence_interval:
                     self.best_cost_history.append(self.best_solution.cost)
                     last_recorded_evals = self.evaluations
+
+            # Survivor selection: detect and replace duplicates to maintain diversity
+            seen_costs: set[int] = set()
+            for idx in range(len(new_population)):
+                cost_key = int(new_population[idx].cost * 1000)  # 3 decimal places
+                if cost_key in seen_costs:
+                    # Replace duplicate with a fresh random individual
+                    fresh_perm = self._random_permutation()
+                    fresh = self.split(fresh_perm)
+                    fresh = self._educate_light(fresh)
+                    new_population[idx] = fresh
+                    cost_key = int(fresh.cost * 1000)
+                seen_costs.add(cost_key)
 
             population = new_population
 

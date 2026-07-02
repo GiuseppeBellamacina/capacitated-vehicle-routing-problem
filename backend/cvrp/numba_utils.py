@@ -8,7 +8,7 @@ import numpy as np
 from numba import njit
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def route_cost_numba(
     route: np.ndarray, dist: np.ndarray, depot: int
 ) -> float:
@@ -23,7 +23,7 @@ def route_cost_numba(
     return cost
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def compute_cost_numba(
     routes_flat: np.ndarray,
     route_ends: np.ndarray,
@@ -49,7 +49,7 @@ def compute_cost_numba(
     return total
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def split_numba(
     perm: np.ndarray,
     dist: np.ndarray,
@@ -138,7 +138,7 @@ def split_numba(
     return routes_flat, route_ends, num_routes, total_cost
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def two_opt_numba(
     route: np.ndarray, dist: np.ndarray, depot: int
 ) -> np.ndarray:
@@ -206,7 +206,7 @@ def two_opt_numba(
     return best
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def or_opt_numba(
     route: np.ndarray, dist: np.ndarray, depot: int
 ) -> np.ndarray:
@@ -256,7 +256,7 @@ def or_opt_numba(
     return best
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def _or_opt_delta(
     route: np.ndarray,
     dist: np.ndarray,
@@ -318,7 +318,7 @@ def _or_opt_delta(
     return route_cost_numba(new_route, dist, depot)
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def _apply_or_opt(
     route: np.ndarray, seg_start: int, seg_len: int, insert_pos: int
 ) -> np.ndarray:
@@ -356,3 +356,31 @@ def _apply_or_opt(
             idx += 1
 
     return new_route
+
+
+@njit(cache=True, nogil=True)
+def order_crossover_numba(
+    p1: np.ndarray, p2: np.ndarray, cx1: int, cx2: int
+) -> np.ndarray:
+    n = len(p1)
+    child = np.full(n, -1, dtype=np.int32)
+    child[cx1 : cx2 + 1] = p1[cx1 : cx2 + 1]
+
+    # Use a boolean mask of size n + 1 for fast O(1) JIT set lookups
+    inherited = np.zeros(n + 1, dtype=np.bool_)
+    for k in range(cx1, cx2 + 1):
+        inherited[p1[k]] = True
+
+    idx = (cx2 + 1) % n
+    p2_idx = (cx2 + 1) % n
+
+    for _ in range(n - (cx2 - cx1 + 1)):
+        while inherited[p2[p2_idx]]:
+            p2_idx = (p2_idx + 1) % n
+        val = p2[p2_idx]
+        child[idx] = val
+        inherited[val] = True
+        idx = (idx + 1) % n
+        p2_idx = (p2_idx + 1) % n
+
+    return child
