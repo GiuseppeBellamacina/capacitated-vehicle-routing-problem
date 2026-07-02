@@ -26,7 +26,7 @@ INSTANCES = [
     "P-n101-k4",
 ]
 
-MAX_EVALS = 350_000
+MAX_EVALS = 3_500
 RUNS = 5
 RESULTS_FILE = Path("results.json")
 
@@ -68,9 +68,10 @@ def run_instance(instance_name: str) -> dict:
 
     start_time = time.time()
 
-    for run_idx in range(RUNS):
+    from tqdm import tqdm
+    run_bar = tqdm(range(RUNS), desc=f"  Runs on {instance_name}", unit="run")
+    for run_idx in run_bar:
         run_start = time.time()
-        print(f"\n  Run {run_idx + 1}/{RUNS}...", end=" ", flush=True)
 
         hga = HybridGeneticAlgorithm(
             instance=instance,
@@ -96,10 +97,10 @@ def run_instance(instance_name: str) -> dict:
             gap = ((solution.cost - instance.optimal_value) / instance.optimal_value) * 100
             gap_str = f"gap={gap:.2f}%"
 
-        print(f"cost={solution.cost:.2f} {gap_str} "
-              f"vehicles={len(solution.routes)} "
-              f"gens={solution.generations_to_best} "
-              f"time={run_elapsed:.1f}s")
+        run_bar.write(f"    Run {run_idx + 1}/{RUNS}: cost={solution.cost:.2f} {gap_str} "
+                      f"vehicles={len(solution.routes)} "
+                      f"gens={solution.generations_to_best} "
+                      f"time={run_elapsed:.1f}s")
 
     elapsed = time.time() - start_time
     mean_cost = sum(all_costs) / len(all_costs)

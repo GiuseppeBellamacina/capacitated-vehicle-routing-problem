@@ -157,33 +157,29 @@ def two_opt_numba(
         best_i = -1
         best_j = -1
 
+        # We try to reverse the segment best[i : j+1]
         for i in range(n - 1):
-            for j in range(i + 2, n):
-                if j == n - 1 and i == 0:
-                    continue
+            for j in range(i + 1, n):
+                if i == 0 and j == n - 1:
+                    continue  # Reversing the whole route is equivalent for symmetric TSP
 
-                # Compute delta for reversing segment [i+1, j]
+                # Compute the old and new costs at the boundaries of the segment best[i : j]
                 if i == 0:
-                    # Old: depot->best[0] + best[j]->next_j
-                    old_cost = dist[depot, best[0]]
+                    old_enter = dist[depot, best[0]]
+                    new_enter = dist[depot, best[j]]
                 else:
-                    old_cost = dist[best[i], best[i + 1]]
+                    old_enter = dist[best[i - 1], best[i]]
+                    new_enter = dist[best[i - 1], best[j]]
 
                 if j == n - 1:
-                    old_cost += dist[best[n - 1], depot]
+                    old_leave = dist[best[n - 1], depot]
+                    new_leave = dist[best[i], depot]
                 else:
-                    old_cost += dist[best[j], best[j + 1]]
+                    old_leave = dist[best[j], best[j + 1]]
+                    new_leave = dist[best[i], best[j + 1]]
 
-                if i == 0:
-                    # New: depot->best[j] + best[0]->next_j
-                    new_cost = dist[depot, best[j]]
-                else:
-                    new_cost = dist[best[i], best[j]]
-
-                if j == n - 1:
-                    new_cost += dist[best[i + 1], depot]
-                else:
-                    new_cost += dist[best[i + 1], best[j + 1]]
+                old_cost = old_enter + old_leave
+                new_cost = new_enter + new_leave
 
                 if new_cost < old_cost - 1e-10:
                     delta = old_cost - new_cost
@@ -195,8 +191,8 @@ def two_opt_numba(
                             best_j = j
 
         if best_i >= 0:
-            # Apply the best move: reverse segment [best_i+1, best_j]
-            left = best_i + 1
+            # Apply the best move: reverse segment [best_i, best_j]
+            left = best_i
             right = best_j
             while left < right:
                 tmp = best[left]

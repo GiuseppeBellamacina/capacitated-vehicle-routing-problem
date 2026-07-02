@@ -1,5 +1,6 @@
 """Minimal test to diagnose numba HGA issues."""
-import sys, time
+import sys
+import time
 sys.path.insert(0, ".")
 
 print("Importing numba_utils...")
@@ -46,13 +47,19 @@ from cvrp.hga import HybridGeneticAlgorithm
 instance = read_instance("../instances/A-n45-k7.vrp")
 print(f"  Instance loaded: {instance.name}, {instance.num_customers} customers")
 
+def progress_callback(data):
+    print(f"  [Callback] Gen {data['generation']}: Evals {data['evaluations']}/{hga.max_evaluations}, Best Cost: {data['best_cost']:.2f}")
+
+print("  Initializing HGA object...")
 hga = HybridGeneticAlgorithm(
     instance=instance,
     population_size=20,
     max_evaluations=500,
     seed=42,
+    callback=progress_callback,
 )
 
+print("  Starting HGA evolution loop (hga.run)...")
 t1 = time.time()
 solution = hga.run(track_convergence=True)
 elapsed = time.time() - t0

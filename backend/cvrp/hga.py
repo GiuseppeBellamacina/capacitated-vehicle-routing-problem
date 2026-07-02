@@ -10,9 +10,8 @@ Implements a permutation-based GA with:
 
 import random
 import time
-import math
 import numpy as np
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable
 
 from .instance import CVRPInstance, compute_distance_matrix
@@ -20,6 +19,7 @@ from .utils import route_demand
 from .numba_utils import (
     split_numba,
     two_opt_numba,
+    or_opt_numba,
 )
 
 
@@ -257,19 +257,23 @@ class HybridGeneticAlgorithm:
         population: list[Solution] = []
 
         # Add heuristic-based solutions
+        print("    [HGA Init] Generating Nearest Neighbor solution...")
         nn_perm = self._nearest_neighbor_heuristic()
         population.append(self.split(nn_perm))
 
+        print("    [HGA Init] Generating Savings Heuristic solution...")
         savings_perm = self._savings_heuristic()
         population.append(self.split(savings_perm))
 
         # Add random permutations
+        print(f"    [HGA Init] Generating remaining {self.population_size - len(population)} random solutions...")
         while len(population) < self.population_size:
             perm = self._random_permutation()
             population.append(self.split(perm))
 
         # Sort by cost
         population.sort(key=lambda s: s.cost)
+        print("    [HGA Init] Initial population completed.")
         return population
 
     # --- Selection ---
@@ -383,37 +387,12 @@ class HybridGeneticAlgorithm:
         return cost
 
     def _or_opt(self, route: list[int]) -> list[int]:
-        """Or-opt: relocate a segment of 1-3 consecutive nodes (steepest descent, pure Python)."""
+        """Or-opt: relocate a segment of 1-3 consecutive nodes (numba-accelerated)."""
         if len(route) < 3:
             return route
-        best = route[:]
-        best_cost = self._route_cost(best)
-        improved = True
-
-        while improved:
-            improved = False
-            best_move: list[int] | None = None
-            best_move_cost = best_cost
-
-            for seg_len in (1, 2, 3):
-                for i in range(len(best) - seg_len + 1):
-                    segment = best[i : i + seg_len]
-                    remaining = best[:i] + best[i + seg_len :]
-                    for j in range(len(remaining) + 1):
-                        if i <= j <= i + seg_len:
-                            continue
-                        new_route = remaining[:j] + segment + remaining[j:]
-                        new_cost = self._route_cost(new_route)
-                        if new_cost < best_move_cost - 1e-8:
-                            best_move_cost = new_cost
-                            best_move = new_route
-
-            if best_move is not None:
-                best = best_move
-                best_cost = best_move_cost
-                improved = True
-
-        return best
+        route_np = np.array(route, dtype=np.int32)
+        result = or_opt_numba(route_np, self.dist_matrix, self.depot)
+        return result.tolist()
 
     def _relocate(self, routes: list[list[int]]) -> list[list[int]]:
         """Inter-route relocate: move a customer from one route to another (steepest descent)."""
@@ -423,8 +402,11 @@ class HybridGeneticAlgorithm:
         best = [r[:] for r in routes]
         best_cost = self._compute_cost(best)
         improved = True
+        max_iter = 2
+        iter_count = 0
 
-        while improved:
+        while improved and iter_count < max_iter:
+            iter_count += 1
             improved = False
             best_move: list[list[int]] | None = None
             best_move_cost = best_cost
@@ -439,15 +421,26 @@ class HybridGeneticAlgorithm:
                             continue
                         if route_demand(route_to, self.demands) + demand > self.capacity:
                             continue
-                        new_routes = [r[:] for r in best]
-                        new_routes[ri].pop(fi)
-                        for pos in range(len(new_routes[rj]) + 1):
-                            new_routes[rj].insert(pos, node)
-                            new_cost = self._compute_cost(new_routes)
+                        
+                        # Compute base cost of these two routes before modification
+                        cost_before = self._route_cost(route_from) + self._route_cost(route_to)
+                        
+                        # In-place modification: move node from route_from to route_to
+                        route_from.pop(fi)
+                        cost_from_after = self._route_cost(route_from)
+                        
+                        for pos in range(len(route_to) + 1):
+                            route_to.insert(pos, node)
+                            cost_to_after = self._route_cost(route_to)
+                            
+                            delta = (cost_from_after + cost_to_after) - cost_before
+                            new_cost = best_cost + delta
+                            
                             if new_cost < best_move_cost - 1e-8:
                                 best_move_cost = new_cost
-                                best_move = [r[:] for r in new_routes]
-                            new_routes[rj].pop(pos)
+                                best_move = [r[:] for r in best]
+                            route_to.pop(pos)
+                        route_from.insert(fi, node)  # Restore original state
 
             if best_move is not None:
                 best = best_move
@@ -464,8 +457,11 @@ class HybridGeneticAlgorithm:
         best = [r[:] for r in routes]
         best_cost = self._compute_cost(best)
         improved = True
+        max_iter = 2
+        iter_count = 0
 
-        while improved:
+        while improved and iter_count < max_iter:
+            iter_count += 1
             improved = False
             best_move: list[list[int]] | None = None
             best_move_cost = best_cost
@@ -482,13 +478,24 @@ class HybridGeneticAlgorithm:
                             load_b = route_demand(route_b, self.demands) - dem_b + dem_a
                             if load_a > self.capacity or load_b > self.capacity:
                                 continue
-                            new_routes = [r[:] for r in best]
-                            new_routes[ri][ai] = node_b
-                            new_routes[rj][bj] = node_a
-                            new_cost = self._compute_cost(new_routes)
+                            
+                            # Compute base cost of these two routes before swap
+                            cost_before = self._route_cost(route_a) + self._route_cost(route_b)
+                            
+                            # In-place swap
+                            route_a[ai] = node_b
+                            route_b[bj] = node_a
+                            cost_after = self._route_cost(route_a) + self._route_cost(route_b)
+                            
+                            delta = cost_after - cost_before
+                            new_cost = best_cost + delta
+                            
                             if new_cost < best_move_cost - 1e-8:
                                 best_move_cost = new_cost
-                                best_move = new_routes
+                                best_move = [r[:] for r in best]
+                            # Restore swap
+                            route_a[ai] = node_a
+                            route_b[bj] = node_b
 
             if best_move is not None:
                 best = best_move
@@ -533,17 +540,27 @@ class HybridGeneticAlgorithm:
         convergence_interval: int = 5000,
     ) -> Solution:
         """Run the HGA algorithm. Returns the best solution found."""
+        print("  [HGA Run] Initializing population...")
         population = self.create_initial_population()
         self.best_solution = min(population, key=lambda s: s.cost)
         best_gen = 0
         self.generation = 0
 
+        print(f"  [HGA Run] Population initialized. Best initial cost: {self.best_solution.cost:.2f}")
+
         if track_convergence:
             self.best_cost_history.append(self.best_solution.cost)
 
         last_recorded_evals = 0
+        print("  [HGA Run] Starting evolution loop...")
+
+        from tqdm import tqdm
+        pbar = tqdm(total=self.max_evaluations, desc="  Evolution", leave=False, initial=self.evaluations)
 
         while self.evaluations < self.max_evaluations:
+            pbar.n = self.evaluations
+            pbar.set_postfix(best=f"{self.best_solution.cost:.2f}")
+            pbar.refresh()
             self.generation += 1
             new_population: list[Solution] = []
 
@@ -606,6 +623,7 @@ class HybridGeneticAlgorithm:
         if track_convergence:
             self.best_cost_history.append(self.best_solution.cost)
 
+        pbar.close()
         return self.best_solution
 
     def run_experiment(
