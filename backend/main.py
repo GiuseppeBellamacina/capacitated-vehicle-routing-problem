@@ -146,6 +146,7 @@ async def run_algorithm_with_callback(
                 tournament_size=cfg.get("tournament_size", 2),
                 elite_count=cfg.get("elite_count", 2),
                 local_search_max_iter=cfg.get("local_search_max_iter", 2),
+                granular_size=cfg.get("granular_size", 15),
                 callback=callback,
                 seed=run_idx * 42 + 12345,
             )
@@ -252,6 +253,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "tournament_size": data.get("tournament_size", 2),
                     "elite_count": data.get("elite_count", 2),
                     "local_search_max_iter": data.get("local_search_max_iter", 2),
+                    "granular_size": data.get("granular_size", 15),
                 }
                 await run_algorithm_with_callback(
                     websocket, instance_name, max_evals, runs, hga_config

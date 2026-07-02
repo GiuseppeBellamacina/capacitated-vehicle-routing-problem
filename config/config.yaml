@@ -59,3 +59,10 @@ elite_count: 2
 # Evita calcoli ridondanti per miglioramenti infinitesimali velocizzando l'evoluzione.
 # Valore consigliato: 2
 local_search_max_iter: 2
+
+# Dimensione del vicinato granulare (granular_size)
+# Nello schema di Ricerca Locale Granulare (Granular Local Search), ciascun cliente considera solo i
+# 'granular_size' vicini più prossimi per valutare spostamenti (Relocate) o scambi (Exchange).
+# Riduce la complessità computazionale della ricerca locale da O(N^2) a O(N * granular_size).
+# Valore consigliato: 15
+granular_size: 3

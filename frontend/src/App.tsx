@@ -524,6 +524,7 @@ function App() {
   const [tournamentSize, setTournamentSize] = useState(2);
   const [eliteCount, setEliteCount] = useState(2);
   const [lsMaxIter, setLsMaxIter] = useState(2);
+  const [granularSize, setGranularSize] = useState(15);
 
   const [results, setResults] = useState<WsExperimentComplete | null>(null);
   const [currentRoutes, setCurrentRoutes] = useState<number[][] | null>(null);
@@ -679,6 +680,7 @@ function App() {
               tournament_size: tournamentSize,
               elite_count: eliteCount,
               local_search_max_iter: lsMaxIter,
+              granular_size: granularSize,
             })
           );
         };
@@ -710,6 +712,7 @@ function App() {
         tournament_size: tournamentSize,
         elite_count: eliteCount,
         local_search_max_iter: lsMaxIter,
+        granular_size: granularSize,
       })
     );
   }
@@ -723,17 +726,25 @@ function App() {
     .flatMap(s => s.instances)
     .find(i => i.name === selectedInstance)?.optimal ?? optimal;
 
-  const liveResults = results ? results : (running ? {
-    best: Math.min(bestCost ?? Infinity, completedRuns.length > 0 ? Math.min(...completedRuns) : Infinity),
-    mean: completedRuns.length > 0 ? completedRuns.reduce((a, b) => a + b, 0) / completedRuns.length : (bestCost ?? 0),
-    std_dev: completedRuns.length > 1 ? (() => {
-      const mean = completedRuns.reduce((a, b) => a + b, 0) / completedRuns.length;
-      const variance = completedRuns.reduce((sum, val) => sum + (val - mean) ** 2, 0) / completedRuns.length;
+  const liveResults = results ? results : (running ? (() => {
+    const activeCost = bestCost !== null ? [bestCost] : [];
+    const allCosts = [...completedRuns, ...activeCost];
+    const best = allCosts.length > 0 ? Math.min(...allCosts) : 0;
+    const mean = allCosts.length > 0 ? allCosts.reduce((a, b) => a + b, 0) / allCosts.length : 0;
+    const std_dev = allCosts.length > 1 ? (() => {
+      const m = allCosts.reduce((a, b) => a + b, 0) / allCosts.length;
+      const variance = allCosts.reduce((sum, val) => sum + (val - m) ** 2, 0) / allCosts.length;
       return Math.sqrt(variance);
-    })() : 0,
-    execution_time: elapsedTime,
-    runs: completedRuns,
-  } as any : null);
+    })() : 0;
+    
+    return {
+      best,
+      mean,
+      std_dev,
+      execution_time: elapsedTime,
+      runs: completedRuns,
+    } as any;
+  })() : null);
 
   return (
     <>
@@ -850,6 +861,10 @@ function App() {
             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
               <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>LS Max Iterations</label>
               <input type="number" value={lsMaxIter} onChange={e => setLsMaxIter(Math.max(1, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Granular Size</label>
+              <input type="number" value={granularSize} onChange={e => setGranularSize(Math.max(1, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
             </div>
           </div>
         </div>

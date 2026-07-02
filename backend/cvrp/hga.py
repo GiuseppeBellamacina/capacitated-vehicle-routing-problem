@@ -61,6 +61,7 @@ class HybridGeneticAlgorithm:
         local_search_rate: float = 0.1,
         elite_count: int = 2,
         local_search_max_iter: int = 2,
+        granular_size: int = 15,
         seed: int | None = None,
         callback: Callable[[dict], None] | None = None,
     ):
@@ -73,6 +74,8 @@ class HybridGeneticAlgorithm:
         self.local_search_rate = local_search_rate
         self.elite_count = elite_count
         self.local_search_max_iter = local_search_max_iter
+        self.granular_size = granular_size
+        self.use_granular_search = (granular_size > 0)
         self.callback = callback
 
         if seed is not None:
@@ -88,11 +91,31 @@ class HybridGeneticAlgorithm:
         # Customer indices (1-indexed, excluding depot at 0)
         self.customers = list(range(1, self.num_customers + 1))
 
+        # Build granular neighborhood for each customer
+        self.granular_neighbors = self._build_granular_neighborhoods()
+
         # Stats
         self.evaluations: int = 0
         self.generation: int = 0
         self.best_solution: Solution | None = None
         self.best_cost_history: list[float] = []
+
+    def _build_granular_neighborhoods(self) -> dict[int, set[int]]:
+        """For each customer, build a set of its granular_size nearest neighbors."""
+        neighborhoods = {}
+        if not self.use_granular_search:
+            return neighborhoods
+        for i in self.customers:
+            # Sort other customers by distance
+            sorted_neighbors = sorted(
+                self.customers,
+                key=lambda j: self.dist_matrix[i][j]
+            )
+            # Filter out self
+            sorted_neighbors = [j for j in sorted_neighbors if j != i]
+            # Take the top granular_size neighbors
+            neighborhoods[i] = set(sorted_neighbors[:self.granular_size])
+        return neighborhoods
 
     # --- Split Algorithm (Prins, 2004) ---
 
@@ -432,6 +455,14 @@ class HybridGeneticAlgorithm:
                         cost_from_after = self._route_cost(route_from)
                         
                         for pos in range(len(route_to) + 1):
+                            # Granular search check: only insert adjacent to depot or a granular neighbor
+                            if self.use_granular_search:
+                                prev_node = route_to[pos - 1] if pos > 0 else 0
+                                next_node = route_to[pos] if pos < len(route_to) else 0
+                                if (prev_node != 0 and prev_node not in self.granular_neighbors[node]) and \
+                                   (next_node != 0 and next_node not in self.granular_neighbors[node]):
+                                    continue
+
                             route_to.insert(pos, node)
                             cost_to_after = self._route_cost(route_to)
                             
@@ -474,6 +505,12 @@ class HybridGeneticAlgorithm:
                         continue
                     for ai, node_a in enumerate(route_a):
                         for bj, node_b in enumerate(route_b):
+                            # Granular search check: only swap if nodes are granular neighbors of each other
+                            if self.use_granular_search:
+                                if node_b not in self.granular_neighbors[node_a] and \
+                                   node_a not in self.granular_neighbors[node_b]:
+                                    continue
+
                             dem_a = self.demands[node_a]
                             dem_b = self.demands[node_b]
                             load_a = route_demand(route_a, self.demands) - dem_a + dem_b

@@ -95,6 +95,7 @@ def run_instance(instance_name: str) -> dict:
             local_search_rate=CONFIG.get("local_search_rate", 0.1),
             tournament_size=CONFIG.get("tournament_size", 2),
             elite_count=CONFIG.get("elite_count", 2),
+            granular_size=CONFIG.get("granular_size", 15),
             seed=run_idx * 42 + 12345,
         )
 
