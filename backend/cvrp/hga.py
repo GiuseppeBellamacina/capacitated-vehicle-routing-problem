@@ -430,7 +430,7 @@ class HybridGeneticAlgorithm:
         max_iter = self.local_search_max_iter
         iter_count = 0
 
-        while improved and iter_count < max_iter:
+        while improved and (max_iter <= 0 or iter_count < max_iter):
             iter_count += 1
             improved = False
             best_move: list[list[int]] | None = None
@@ -493,7 +493,7 @@ class HybridGeneticAlgorithm:
         max_iter = self.local_search_max_iter
         iter_count = 0
 
-        while improved and iter_count < max_iter:
+        while improved and (max_iter <= 0 or iter_count < max_iter):
             iter_count += 1
             improved = False
             best_move: list[list[int]] | None = None
