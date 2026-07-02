@@ -207,6 +207,15 @@ L'ibridazione è realizzata attraverso quattro operatori di ricerca locale, appl
 
 La ricerca locale conta come 5 valutazioni di fitness a causa del suo costo computazionale.
 
+Per mitigare l'elevato costo computazionale degli operatori inter-route (Relocate ed Exchange), che richiederebbero altrimenti una scansione completa di complessità $O(N^2)$ per verificare tutte le combinazioni di inserimento e scambio, è stata integrata la \textbf{Ricerca Locale Granulare} (Granular Local Search, GLS). 
+
+Per ciascun cliente $i \in V \setminus \{v_0\}$ si definisce un intorno di vicinanza $\Gamma_i$ composto dai soli $\gamma$ (parametro \texttt{granular\_size}) clienti più vicini secondo la matrice delle distanze. Durante la ricerca locale:
+\begin{itemize}
+    \item Un cliente $i$ viene inserito (Relocate) all'interno di una rotta destinataria solo in una posizione immediatamente adiacente a un nodo $j$ tale che $j \in \Gamma_i$ (o adiacente al depot);
+    \item Due clienti $i$ e $j$ vengono valutati per uno scambio (Exchange) solo se $i \in \Gamma_j$ oppure $j \in \Gamma_i$.
+\end{itemize}
+Questo filtro riduce la complessità computazionale dell'esplorazione del vicinato inter-route a $O(N \cdot \gamma)$. Con impostazioni del parametro $\gamma \ll N$ (ad esempio $\gamma = 15$ consigliato, o $\gamma = 3$ per test ultra-rapidi), la GLS consente di eliminare fino al 90\% dei calcoli ridondanti per mosse distanti nello spazio, determinando il massivo aumento delle valutazioni al secondo dell'algoritmo.
+
 \subsection{Elitismo e Rimpiazzo}
 
 I migliori $e = 2$ individui della popolazione corrente sono preservati nella generazione successiva (elitismo). Il resto della popolazione è sostituito dai nuovi individui generati tramite crossover, mutazione e ricerca locale.
