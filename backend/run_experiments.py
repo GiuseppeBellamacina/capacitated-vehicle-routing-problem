@@ -1,17 +1,34 @@
-"""Full experiment runner: all 10 instances, 5 runs each, 350K evaluations.
-
-Saves results progressively to results.json so partial results survive crashes.
-"""
-
 import json
 import sys
 import time
 from pathlib import Path
+import yaml  # noqa: E402
 
 sys.path.insert(0, ".")
 
 from cvrp.instance import read_instance
 from cvrp.hga import HybridGeneticAlgorithm
+
+def load_config() -> dict:
+    config_path = Path(__file__).parent.parent / "config" / "config.yaml"
+    if config_path.exists():
+        with open(config_path) as f:
+            return yaml.safe_load(f)
+    return {
+        "population_size": 100,
+        "max_evaluations": 350000,
+        "runs": 5,
+        "crossover_rate": 0.8,
+        "mutation_rate": 0.1,
+        "local_search_rate": 0.1,
+        "tournament_size": 2,
+        "elite_count": 2,
+    }
+
+CONFIG = load_config()
+MAX_EVALS = CONFIG.get("max_evaluations", 350000)
+RUNS = CONFIG.get("runs", 5)
+RESULTS_FILE = Path(__file__).parent.parent / "results" / "results.json"
 
 INSTANCES = [
     "A-n45-k7",
@@ -25,10 +42,6 @@ INSTANCES = [
     "P-n50-k10",
     "P-n101-k4",
 ]
-
-MAX_EVALS = 3_500
-RUNS = 5
-RESULTS_FILE = Path("results.json")
 
 
 def load_results() -> dict:
@@ -75,8 +88,13 @@ def run_instance(instance_name: str) -> dict:
 
         hga = HybridGeneticAlgorithm(
             instance=instance,
-            population_size=100,
+            population_size=CONFIG.get("population_size", 100),
             max_evaluations=MAX_EVALS,
+            crossover_rate=CONFIG.get("crossover_rate", 0.8),
+            mutation_rate=CONFIG.get("mutation_rate", 0.1),
+            local_search_rate=CONFIG.get("local_search_rate", 0.1),
+            tournament_size=CONFIG.get("tournament_size", 2),
+            elite_count=CONFIG.get("elite_count", 2),
             seed=run_idx * 42 + 12345,
         )
 
@@ -114,6 +132,7 @@ def run_instance(instance_name: str) -> dict:
         gap_to_optimal = f"{((best_cost - instance.optimal_value) / instance.optimal_value) * 100:.2f}%"
 
     print(f"\n  Results for {instance_name}:")
+    print(f"    Optimal:  {instance.optimal_value}")
     print(f"    Best:     {best_cost:.2f} ({gap_to_optimal})")
     print(f"    Mean:     {mean_cost:.2f}")
     print(f"    Std Dev:  {std_dev:.2f}")

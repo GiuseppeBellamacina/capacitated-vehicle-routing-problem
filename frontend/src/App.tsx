@@ -27,6 +27,7 @@ interface WsProgress {
   evaluations: number;
   best_cost: number;
   population_avg: number;
+  routes?: number[][];
 }
 
 interface WsRunStart {
@@ -513,8 +514,25 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [bestCost, setBestCost] = useState<number | null>(null);
 
+  // HGA Configurable Parameters
+  const [popSize, setPopSize] = useState(100);
+  const [maxEvals, setMaxEvals] = useState(350000);
+  const [numRuns, setNumRuns] = useState(5);
+  const [crossoverRate, setCrossoverRate] = useState(0.8);
+  const [mutationRate, setMutationRate] = useState(0.1);
+  const [lsRate, setLsRate] = useState(0.1);
+  const [tournamentSize, setTournamentSize] = useState(2);
+  const [eliteCount, setEliteCount] = useState(2);
+  const [lsMaxIter, setLsMaxIter] = useState(2);
+
   const [results, setResults] = useState<WsExperimentComplete | null>(null);
+  const [currentRoutes, setCurrentRoutes] = useState<number[][] | null>(null);
   const [optimal, setOptimal] = useState<number | null>(null);
+
+  const [liveConvergence, setLiveConvergence] = useState<number[][]>([]);
+  const [completedRuns, setCompletedRuns] = useState<number[]>([]);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const startTimeRef = useRef<number>(0);
 
   const [logs, setLogs] = useState<string[]>([]);
 
@@ -542,10 +560,16 @@ function App() {
   // Load selected instance details
   useEffect(() => {
     if (!selectedInstance) return;
+    setResults(null);
+    setCurrentRoutes(null);
     fetch(`/api/instance/${selectedInstance}`)
       .then(r => r.json())
       .then((data) => {
-        setCoords(data.coords || []);
+        const formattedCoords = (data.coords || []).map((c: [number, number]) => ({
+          x: c[0],
+          y: c[1]
+        }));
+        setCoords(formattedCoords);
         setDemands(data.demands || []);
         setCapacity(data.capacity || 100);
         setOptimal(data.optimal || null);
@@ -574,18 +598,37 @@ function App() {
         case "run_start":
           setCurrentRun(msg.run);
           setTotalRuns(msg.total_runs);
+          setCurrentRoutes(null); // Clear routes for the new run
+          setLiveConvergence(prev => [...prev, []]);
           addLog(`▶ Run ${msg.run}/${msg.total_runs} - ${msg.instance}`);
           break;
         case "progress":
-          setProgress(msg.evaluations / 350000);
+          setProgress(msg.evaluations / maxEvals);
           setBestCost(msg.best_cost);
+          setElapsedTime((Date.now() - startTimeRef.current) / 1000);
+          if (msg.routes) {
+            setCurrentRoutes(msg.routes);
+          }
+          setLiveConvergence(prev => {
+            const next = prev.map(arr => [...arr]);
+            const runIdx = msg.run - 1;
+            if (next[runIdx]) {
+              next[runIdx].push(msg.best_cost);
+            }
+            return next;
+          });
           break;
         case "run_complete":
+          setCurrentRoutes(msg.routes);
+          setElapsedTime((Date.now() - startTimeRef.current) / 1000);
+          setCompletedRuns(prev => [...prev, msg.cost]);
           addLog(`✓ Run ${msg.run}/${totalRuns} completed: ${Math.round(msg.cost)} (vehicles: ${msg.num_vehicles})`);
           break;
         case "experiment_complete":
           setRunning(false);
           setResults(msg);
+          setCurrentRoutes(msg.routes);
+          setElapsedTime(msg.execution_time);
           setBestCost(msg.best);
           setProgress(1);
           addLog(`🏆 Experiment complete! Best: ${Math.round(msg.best)}, Mean: ${Math.round(msg.mean)}`);
@@ -627,8 +670,15 @@ function App() {
             JSON.stringify({
               action: "run",
               instance: selectedInstance,
-              max_evals: 350000,
-              runs: 5,
+              max_evals: maxEvals,
+              runs: numRuns,
+              population_size: popSize,
+              crossover_rate: crossoverRate,
+              mutation_rate: mutationRate,
+              local_search_rate: lsRate,
+              tournament_size: tournamentSize,
+              elite_count: eliteCount,
+              local_search_max_iter: lsMaxIter,
             })
           );
         };
@@ -638,6 +688,11 @@ function App() {
 
     setRunning(true);
     setResults(null);
+    setCurrentRoutes(null);
+    setLiveConvergence([]);
+    setCompletedRuns([]);
+    setElapsedTime(0);
+    startTimeRef.current = Date.now();
     setProgress(0);
     setLogs([]);
     addLog(`Starting experiment on ${selectedInstance}...`);
@@ -646,8 +701,15 @@ function App() {
       JSON.stringify({
         action: "run",
         instance: selectedInstance,
-        max_evals: 350000,
-        runs: 5,
+        max_evals: maxEvals,
+        runs: numRuns,
+        population_size: popSize,
+        crossover_rate: crossoverRate,
+        mutation_rate: mutationRate,
+        local_search_rate: lsRate,
+        tournament_size: tournamentSize,
+        elite_count: eliteCount,
+        local_search_max_iter: lsMaxIter,
       })
     );
   }
@@ -660,6 +722,18 @@ function App() {
   const selectedOptimal = instances
     .flatMap(s => s.instances)
     .find(i => i.name === selectedInstance)?.optimal ?? optimal;
+
+  const liveResults = results ? results : (running ? {
+    best: Math.min(bestCost ?? Infinity, completedRuns.length > 0 ? Math.min(...completedRuns) : Infinity),
+    mean: completedRuns.length > 0 ? completedRuns.reduce((a, b) => a + b, 0) / completedRuns.length : (bestCost ?? 0),
+    std_dev: completedRuns.length > 1 ? (() => {
+      const mean = completedRuns.reduce((a, b) => a + b, 0) / completedRuns.length;
+      const variance = completedRuns.reduce((sum, val) => sum + (val - mean) ** 2, 0) / completedRuns.length;
+      return Math.sqrt(variance);
+    })() : 0,
+    execution_time: elapsedTime,
+    runs: completedRuns,
+  } as any : null);
 
   return (
     <>
@@ -703,13 +777,13 @@ function App() {
 
       <div className="main-grid">
         {/* Route Visualization */}
-        <div className="card" style={{ gridRow: "span 2" }}>
+        <div className="card" style={{ gridRow: "span 3" }}>
           <h2>Route Visualization</h2>
           <RouteCanvas
             coords={coords}
             demands={demands}
             capacity={capacity}
-            routes={results?.routes ?? null}
+            routes={currentRoutes ?? results?.routes ?? null}
             instanceName={selectedInstance}
           />
         </div>
@@ -717,19 +791,67 @@ function App() {
         {/* Convergence Chart */}
         <div className="card">
           <h2>Convergence</h2>
-          <ConvergenceChart data={results?.convergence ?? []} />
+          <ConvergenceChart data={liveConvergence.length > 0 ? liveConvergence : (results?.convergence ?? [])} />
         </div>
 
         {/* Stats */}
         <div className="card">
           <h2>Statistics</h2>
-          <StatsPanel results={results} optimal={selectedOptimal} />
+          <StatsPanel results={liveResults} optimal={selectedOptimal} />
 
-          {results && results.runs && (
+          {liveResults && liveResults.runs && liveResults.runs.length > 0 && (
             <div style={{ marginTop: 8, fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              Per-run costs: {results.runs.map(c => Math.round(c)).join(", ")}
+              Per-run costs: {liveResults.runs.map(c => Math.round(c)).join(", ")}
             </div>
           )}
+        </div>
+
+        {/* HGA Parameters */}
+        <div className="card">
+          <h2>HGA Parameters</h2>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+            gap: "12px",
+            marginTop: "4px"
+          }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Population Size</label>
+              <input type="number" value={popSize} onChange={e => setPopSize(Math.max(2, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Max Evaluations</label>
+              <input type="number" value={maxEvals} onChange={e => setMaxEvals(Math.max(10, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Runs</label>
+              <input type="number" value={numRuns} onChange={e => setNumRuns(Math.max(1, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Crossover Rate</label>
+              <input type="number" step="0.05" min="0" max="1" value={crossoverRate} onChange={e => setCrossoverRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Mutation Rate</label>
+              <input type="number" step="0.05" min="0" max="1" value={mutationRate} onChange={e => setMutationRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Local Search Rate</label>
+              <input type="number" step="0.05" min="0" max="1" value={lsRate} onChange={e => setLsRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Tournament Size</label>
+              <input type="number" value={tournamentSize} onChange={e => setTournamentSize(Math.max(1, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Elite Count</label>
+              <input type="number" value={eliteCount} onChange={e => setEliteCount(Math.max(0, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>LS Max Iterations</label>
+              <input type="number" value={lsMaxIter} onChange={e => setLsMaxIter(Math.max(1, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+            </div>
+          </div>
         </div>
       </div>
 

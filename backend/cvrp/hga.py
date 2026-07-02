@@ -56,10 +56,11 @@ class HybridGeneticAlgorithm:
         population_size: int = 100,
         max_evaluations: int = 350_000,
         tournament_size: int = 2,
-        crossover_rate: float = 0.9,
-        mutation_rate: float = 0.3,
+        crossover_rate: float = 0.8,
+        mutation_rate: float = 0.1,
         local_search_rate: float = 0.1,
         elite_count: int = 2,
+        local_search_max_iter: int = 2,
         seed: int | None = None,
         callback: Callable[[dict], None] | None = None,
     ):
@@ -71,6 +72,7 @@ class HybridGeneticAlgorithm:
         self.mutation_rate = mutation_rate
         self.local_search_rate = local_search_rate
         self.elite_count = elite_count
+        self.local_search_max_iter = local_search_max_iter
         self.callback = callback
 
         if seed is not None:
@@ -402,7 +404,7 @@ class HybridGeneticAlgorithm:
         best = [r[:] for r in routes]
         best_cost = self._compute_cost(best)
         improved = True
-        max_iter = 2
+        max_iter = self.local_search_max_iter
         iter_count = 0
 
         while improved and iter_count < max_iter:
@@ -457,7 +459,7 @@ class HybridGeneticAlgorithm:
         best = [r[:] for r in routes]
         best_cost = self._compute_cost(best)
         improved = True
-        max_iter = 2
+        max_iter = self.local_search_max_iter
         iter_count = 0
 
         while improved and iter_count < max_iter:
@@ -548,6 +550,10 @@ class HybridGeneticAlgorithm:
 
         print(f"  [HGA Run] Population initialized. Best initial cost: {self.best_solution.cost:.2f}")
 
+        # Dynamically scale convergence interval to record around 100 points
+        if convergence_interval == 5000:
+            convergence_interval = max(1, self.max_evaluations // 100)
+
         if track_convergence:
             self.best_cost_history.append(self.best_solution.cost)
 
@@ -613,6 +619,7 @@ class HybridGeneticAlgorithm:
                     "best_cost": self.best_solution.cost,
                     "population_avg": sum(s.cost for s in population) / len(population),
                     "population_size": len(population),
+                    "routes": [[int(n) for n in r] for r in (self.best_solution.routes or [])],
                 })
 
             if self.evaluations >= self.max_evaluations:

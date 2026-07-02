@@ -1,0 +1,61 @@
+# ==============================================================================
+# CONFIGURAZIONE HYBRID GENETIC ALGORITHM (HGA) PER CVRP
+# ==============================================================================
+# Questo file contiene tutti i parametri che governano il comportamento dell'algoritmo
+# genetico memetico (HGA). Può essere modificato a mano prima di eseguire gli esperimenti.
+
+# Dimensione della popolazione (N)
+# Rappresenta il numero di soluzioni (individui) mantenute contemporaneamente nel pool genetico.
+# Un valore maggiore aumenta l'esplorazione dello spazio di ricerca ma richiede più tempo CPU.
+# Valore consigliato da consegna: 100
+population_size: 100
+
+# Numero massimo di valutazioni (Fitness Evaluations - FE)
+# Il budget di calcolo concesso all'algoritmo per ogni run. Il processo si interrompe
+# al raggiungimento di questo valore.
+# Valore consigliato da consegna: 350000 (usa valori bassi come 3500 per test veloci)
+max_evaluations: 350000
+
+# Numero di esecuzioni indipendenti (runs)
+# Numero di volte in cui l'intero processo genetico viene ripetuto da zero per ogni istanza.
+# Utile per ricavare statistiche robuste (media, deviazione standard, miglior risultato).
+# Valore consigliato da consegna: 5
+runs: 5
+
+# Tasso di Crossover (pc)
+# Probabilità (tra 0.0 e 1.0) che due genitori selezionati vengano incrociati (tramite Order Crossover)
+# per generare un nuovo figlio. Se l'incrocio non avviene, il figlio eredita direttamente il cromosoma
+# del genitore senza tagli.
+# Valore consigliato da consegna: 0.8
+crossover_rate: 0.8
+
+# Tasso di Mutazione (pm)
+# Probabilità (tra 0.0 e 1.0) che un nuovo figlio subisca una mutazione casuale (Swap, Insert, Inversion).
+# Impedisce all'algoritmo di bloccarsi su minimi locali prematuri introducendo biodiversità genetica.
+# Valore consigliato da consegna: 0.1
+mutation_rate: 0.1
+
+# Tasso di Ricerca Locale (pls)
+# Probabilità (tra 0.0 e 1.0) che un nuovo figlio subisca il raffinamento locale tramite i 4 operatori
+# (2-opt, Or-opt, Relocate, Exchange). L'ibridazione è ciò che rende l'algoritmo memetico.
+# Valore consigliato da consegna: 0.1
+local_search_rate: 0.1
+
+# Dimensione del torneo (k)
+# Numero di individui selezionati casualmente dalla popolazione per sfidarsi. Il vincitore (con costo minore)
+# viene scelto come genitore per la riproduzione. Regola la pressione selettiva.
+# Valore tipico: 2
+tournament_size: 2
+
+# Quota di Elitismo (e)
+# Numero di soluzioni migliori della generazione precedente che vengono clonate inalterate nella nuova generazione.
+# Evita la perdita accidentale della migliore rotta trovata a causa di crossover o mutazioni sfortunate.
+# Valore tipico: 2
+elite_count: 2
+
+# Iterazioni massime della ricerca locale (max_iter)
+# Limita il numero massimo di scansioni complete del vicinato (cicli while improved) che gli operatori
+# inter-route (Relocate ed Exchange) compiono ad ogni chiamata.
+# Evita calcoli ridondanti per miglioramenti infinitesimali velocizzando l'evoluzione.
+# Valore consigliato: 2
+local_search_max_iter: 2

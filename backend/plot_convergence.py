@@ -3,9 +3,21 @@
 import json
 from pathlib import Path
 import matplotlib.pyplot as plt
+import yaml
 
-RESULTS_FILE = Path("results.json")
-REPORT_DIR = Path("../docs/report")
+RESULTS_FILE = Path(__file__).parent.parent / "results" / "results.json"
+REPORT_DIR = Path(__file__).parent.parent / "docs" / "report"
+
+# Load max evaluations from config.yaml dynamically
+def load_max_evals() -> int:
+    config_path = Path(__file__).parent.parent / "config" / "config.yaml"
+    if config_path.exists():
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f)
+            return cfg.get("max_evaluations", 350000)
+    return 350000
+
+MAX_EVALS = load_max_evals()
 
 # Select 3 representative instances
 REPRESENTATIVE_INSTANCES = [
@@ -52,8 +64,11 @@ def generate_plots():
         
         # Plot each run
         for run_idx, run_history in enumerate(convergence):
-            # The convergence interval is 5000 evaluations
-            x_vals = [i * 5000 for i in range(len(run_history))]
+            L = len(run_history)
+            if L > 1:
+                x_vals = [i * (MAX_EVALS / (L - 1)) for i in range(L)]
+            else:
+                x_vals = [0]
             plt.plot(x_vals, run_history, label=f"Run {run_idx + 1}", linewidth=1.5, alpha=0.8)
 
         # Plot optimal line if known

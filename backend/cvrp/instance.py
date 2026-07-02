@@ -36,7 +36,8 @@ def _parse_optimal_from_comment(comment: str) -> int | None:
     """Extract optimal value from comment string if present."""
     import re
 
-    match = re.search(r"Optimal value:\s*(\d+)", comment)
+    # Matches "Optimal value: 123" or "Best value: 123" (case-insensitive)
+    match = re.search(r"(?:Optimal|Best)\s+value:\s*(\d+)", comment, re.IGNORECASE)
     if match:
         return int(match.group(1))
     return None

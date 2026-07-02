@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-RESULTS_FILE = Path("results.json")
+RESULTS_FILE = Path(__file__).parent.parent / "results" / "results.json"
 
 def format_table():
     if not RESULTS_FILE.exists():

@@ -82,6 +82,7 @@ async def run_algorithm_with_callback(
     instance_name: str,
     max_fitness_evals: int = 350_000,
     runs: int = 5,
+    hga_config: dict | None = None,
 ):
     """Run the HGA algorithm and stream progress via WebSocket."""
     filepath = INSTANCES_DIR / f"{instance_name}.vrp"
@@ -134,10 +135,17 @@ async def run_algorithm_with_callback(
         drain_task = asyncio.create_task(drain_progress(run_idx + 1))
 
         try:
+            cfg = hga_config or {}
             hga = HybridGeneticAlgorithm(
                 instance=instance,
-                population_size=100,
+                population_size=cfg.get("population_size", 100),
                 max_evaluations=max_fitness_evals,
+                crossover_rate=cfg.get("crossover_rate", 0.8),
+                mutation_rate=cfg.get("mutation_rate", 0.1),
+                local_search_rate=cfg.get("local_search_rate", 0.1),
+                tournament_size=cfg.get("tournament_size", 2),
+                elite_count=cfg.get("elite_count", 2),
+                local_search_max_iter=cfg.get("local_search_max_iter", 2),
                 callback=callback,
                 seed=run_idx * 42 + 12345,
             )
@@ -236,8 +244,17 @@ async def websocket_endpoint(websocket: WebSocket):
                 instance_name = data.get("instance", "A-n45-k7")
                 max_evals = data.get("max_evals", 350_000)
                 runs = data.get("runs", 5)
+                hga_config = {
+                    "population_size": data.get("population_size", 100),
+                    "crossover_rate": data.get("crossover_rate", 0.8),
+                    "mutation_rate": data.get("mutation_rate", 0.1),
+                    "local_search_rate": data.get("local_search_rate", 0.1),
+                    "tournament_size": data.get("tournament_size", 2),
+                    "elite_count": data.get("elite_count", 2),
+                    "local_search_max_iter": data.get("local_search_max_iter", 2),
+                }
                 await run_algorithm_with_callback(
-                    websocket, instance_name, max_evals, runs
+                    websocket, instance_name, max_evals, runs, hga_config
                 )
             elif action == "list_instances":
                 instances = get_available_instances()
