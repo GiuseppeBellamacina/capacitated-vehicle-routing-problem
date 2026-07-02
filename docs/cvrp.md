@@ -145,3 +145,29 @@ Per rendere fattibile l'esecuzione di 350.000 valutazioni in tempi ragionevoli s
     Invece di creare copie di liste ad ogni tentativo di mossa (che causava rallentamenti nella gestione della memoria), le mosse vengono tentate modificando le liste di rotte originali "in-place" e ripristinandole immediatamente dopo il calcolo del costo (backtracking). La copia della lista avviene solo quando la mossa viene effettivamente accettata come migliore.
 4.  **Limite alle Iterazioni di Ricerca Locale (`max_iter = 2`)**:
     Limitando le iterazioni dei cicli di ricerca locale a un massimo di 2 passate per chiamata, evitiamo che l'algoritmo perda tempo prezioso a inseguire miglioramenti infinitesimali su singoli individui, massimizzando il rendimento globale dell'evoluzione del pool genetico.
+
+---
+
+## 8. Visualizzazione dei Risultati
+
+Lo script `plot_convergence.py` genera automaticamente due tipologie di grafici per le 3 istanze rappresentative selezionate (una per ogni set del benchmark: `A-n45-k7`, `E-n76-k8`, `P-n101-k4`):
+
+### 8.1 Grafici di Convergenza
+I grafici di convergenza (`convergence_<nome>.png`) illustrano il processo di apprendimento dell'HGA, mostrando l'evoluzione del miglior costo trovato in funzione del numero di valutazioni della funzione fitness (FE). Ogni grafico include:
+- Le curve delle 5 run indipendenti (grigio chiaro semi-trasparente)
+- La banda di deviazione standard (±1σ) attorno alla media
+- La curva del costo medio (blu)
+- L'inviluppo della run migliore (verde tratteggiato)
+- La linea del valore ottimo noto, se disponibile nel benchmark (rosso tratteggiato)
+
+### 8.2 Grafici delle Rotte Migliori
+I grafici delle rotte (`routes_<nome>.png`) forniscono una visualizzazione geospaziale della migliore soluzione complessiva trovata tra tutte le 5 run. Su una mappa 2D delle coordinate dei nodi vengono disegnati:
+- Il **deposito** come quadrato rosso prominente con etichetta
+- I **nodi cliente** come cerchi grigio-scuro
+- Le **rotte dei veicoli** come percorsi colorati con frecce direzionali che partono e tornano al deposito
+- Un'**etichetta** `R1`, `R2`, … posizionata accanto al primo nodo di ciascuna rotta per identificarne l'ordine
+- Nel titolo: nome dell'istanza, costo della soluzione, gap percentuale dall'ottimo e numero di veicoli utilizzati
+
+La palette di colori scelta è qualitativa e adatta a daltonici (colorblind-friendly), con 20 colori distinti per supportare istanze con molti veicoli.
+
+I grafici vengono salvati in `docs/report/` in formato PNG a 300 DPI, pronti per l'inclusione nella relazione LaTeX.

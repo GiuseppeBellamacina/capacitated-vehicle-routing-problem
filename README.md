@@ -19,6 +19,8 @@ capacitated-vehicle-routing-problem/
 │   ├── main.py               # Server FastAPI + gestione canali WebSocket
 │   ├── pyproject.toml        # Dipendenze e metadati del progetto (gestito con uv)
 │   ├── run_experiments.py    # Script di esecuzione del protocollo sperimentale completo
+│   ├── plot_convergence.py   # Script di generazione grafici (convergenza + rotte)
+│   ├── format_latex_table.py # Script di formattazione tabella LaTeX
 │   ├── test_quick.py         # Test rapido di esecuzione dell'algoritmo
 │   └── test_minimal.py       # Test unitario e di compilazione Numba
 ├── frontend/                 # Dashboard interattiva React
@@ -30,6 +32,7 @@ capacitated-vehicle-routing-problem/
 │   └── vite.config.ts        # Configurazione Vite con proxy API/WebSocket
 ├── instances/                # Istanze del benchmark ufficiale CVRPLIB (.vrp)
 ├── docs/
+│   ├── cvrp.md               # Documentazione teorica dell'algoritmo HGA
 │   └── report/               # Relazione di progetto in LaTeX
 │       ├── report.tex        # Codice sorgente del report accademico
 │       └── report.pdf        # PDF compilato del report
@@ -158,6 +161,30 @@ cd backend
 ```
 
 Al termine dell'esecuzione, lo script genererà un sommario a terminale con le statistiche richieste per la relazione finale: **Best Cost**, **Mean Cost**, **Standard Deviation**, **Average Generations to Best** ed **Execution Time** per ciascuna istanza, confrontati con il valore ottimo noto del benchmark.
+
+### Generazione dei Grafici
+
+Lo script `plot_convergence.py` genera due tipi di grafici per le 3 istanze rappresentative (`A-n45-k7`, `E-n76-k8`, `P-n101-k4`):
+
+1. **Grafici di Convergenza** (`convergence_<nome>.png`): mostrano l'andamento del costo della soluzione migliore trovata dall'HGA in funzione del numero di valutazioni della fitness (FE), visualizzando:
+   - Le curve individuali di ogni run indipendente
+   - La banda di deviazione standard
+   - La curva media e l'inviluppo della run migliore
+   - La linea del valore ottimo noto (se disponibile)
+
+2. **Grafici delle Rotte Migliori** (`routes_<nome>.png`): visualizzano su mappa 2D la migliore soluzione trovata, mostrando:
+   - Il deposito (quadrato rosso)
+   - I nodi cliente (cerchi grigi)
+   - Le rotte dei veicoli come percorsi colorati con frecce direzionali
+   - Etichette per ogni rotta e statistiche (costo, gap dall'ottimo, veicoli utilizzati)
+
+Per generare i grafici:
+```bash
+cd backend
+.venv\Scripts\python.exe plot_convergence.py
+```
+
+I grafici vengono salvati in `docs/report/` in formato PNG ad alta risoluzione (300 DPI).
 
 ---
 
