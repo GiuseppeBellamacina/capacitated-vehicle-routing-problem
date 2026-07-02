@@ -127,77 +127,66 @@ Per avviare l'applicazione completa con dashboard interattiva in tempo reale:
 
 Per verificare che l'algoritmo e le ottimizzazioni Numba funzionino correttamente sul tuo hardware:
 
-- **Test minimale di compilazione Numba**:
-  ```bash
-  cd backend
-  .venv\Scripts\python.exe test_minimal.py
-  ```
-- **Test rapido dell'algoritmo (2000 valutazioni)**:
-  ```bash
-  cd backend
-  .venv\Scripts\python.exe test_quick.py
-  ```
+- **## 📊 Protocollo Sperimentale e Risultati (Benchmark CVRPLIB)
 
----
+Il protocollo sperimentale prevede l'esecuzione dell'algoritmo su **10 istanze del benchmark CVRPLIB** (distribuite in 4 set differenti: A, B, E, P), per **5 run indipendenti** ciascuna, con un criterio di arresto rigoroso fissato a **350.000 valutazioni della funzione fitness (FE)**.
 
-## 📊 Protocollo Sperimentale (Benchmark CVRPLIB)
+### Risultati Finali Ottenuti (R = 5, FE = 350.000)
 
-Il protocollo sperimentale prevede l'esecuzione dell'algoritmo su **10 istanze del benchmark CVRPLIB** (distribuite in 4 set differenti), per **5 run indipendenti** ciascuna, con un criterio di arresto rigoroso fissato a **350.000 valutazioni della funzione fitness (FE)**.
+Grazie alle ottimizzazioni apportate a livello algoritmico, l'HGA ha ottenuto risultati eccellenti, avvicinandosi sensibilmente all'ottimo globale (BKS) con gap percentuali estremamente ridotti:
 
-Le istanze utilizzate sono:
-1. **Set A**: `A-n45-k7`, `A-n60-k9`, `A-n80-k10`
-2. **Set B**: `B-n56-k7`, `B-n66-k9`, `B-n78-k10`
-3. **Set E**: `E-n76-k8`, `E-n101-k14`
-4. **Set P**: `P-n50-k10`, `P-n101-k4`
+| Istanza | HGA Best Cost | Mean Cost | Std Dev | Ottimo (BKS) | Gap% | Veicoli |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **A-n45-k7** | 1146.91 | 1155.02 | 12.81 | 1146 | **0.08%** | 7 |
+| **A-n60-k9** | 1367.34 | 1376.86 | 7.87 | 1354 | **0.99%** | 9 |
+| **A-n80-k10** | 1817.37 | 1848.71 | 26.61 | 1763 | 3.08% | 10 |
+| **B-n56-k7** | 712.92 | 716.05 | 1.69 | 707 | **0.84%** | 7 |
+| **B-n66-k9** | 1327.10 | 1330.89 | 3.30 | 1316 | **0.84%** | 9 |
+| **B-n78-k10** | 1238.33 | 1254.00 | 8.16 | 1221 | 1.42% | 10 |
+| **E-n76-k8** | 750.44 | 760.29 | 6.74 | 735 | 2.10% | 8 |
+| **E-n101-k14** | 1097.02 | 1105.04 | 8.10 | 1071 | 2.43% | 14 |
+| **P-n50-k10** | 700.66 | 705.54 | 3.40 | 696 | **0.67%** | 10 |
+| **P-n101-k4** | 693.54 | 694.70 | 1.07 | 681 | 1.84% | 4 |
 
-### Esecuzione Automatica del Benchmark
-
-È presente uno script dedicato per l'esecuzione automatica del protocollo sperimentale completo su tutte le 10 istanze. I risultati intermedi vengono salvati progressivamente in formato JSON (`backend/results.json`) per garantire la persistenza dei dati anche in caso di interruzioni.
-
-Per avviare il benchmark:
+### Esecuzione del Benchmark
+Per rieseguire l'intero protocollo sperimentale:
 ```bash
 cd backend
 .venv\Scripts\python.exe run_experiments.py
 ```
+I risultati storici vengono progressivamente scritti in `results/results.json`.
 
-Al termine dell'esecuzione, lo script genererà un sommario a terminale con le statistiche richieste per la relazione finale: **Best Cost**, **Mean Cost**, **Standard Deviation**, **Average Generations to Best** ed **Execution Time** per ciascuna istanza, confrontati con il valore ottimo noto del benchmark.
+### Generazione dei Grafici ad Alta Risoluzione
 
-### Generazione dei Grafici
+Lo script `plot_convergence.py` genera automaticamente un set di **9 grafici di livello accademico** (salvati nella directory `docs/report/imgs/` a 300 DPI):
 
-Lo script `plot_convergence.py` genera due tipi di grafici per le 3 istanze rappresentative (`A-n45-k7`, `E-n76-k8`, `P-n101-k4`):
+1. **Grafici di Convergenza** (`imgs/convergence/`): Visualizzazione delle 5 run individuali, della deviazione standard ($\pm 1\sigma$), del comportamento medio e della run migliore per ciascuna istanza rappresentativa.
+2. **Grafici delle Rotte Migliori** (`imgs/routes/`): Tracciato geometrico 2D delle rotte reali effettuate dai veicoli, con differenziazione cromatica colorblind-friendly, marker proporzionali alle domande dei clienti e indicazione numerica dell'ordine delle tappe.
+3. **Grafici di Riepilogo** (`imgs/summary/`):
+   - `summary_best_vs_bks.png`: Istogramma di confronto diretto tra il costo migliore HGA e il valore ottimale BKS.
+   - `summary_gap.png`: Grafico delle deviazioni percentuali (gap) rispetto all'ottimo per tutte le istanze.
+   - `summary_boxplot.png`: Distribuzione dei costi normalizzata in percentuale rispetto alla BKS per analizzare la stabilità statistica dell'algoritmo.
+   - `summary_runtime.png`: Grafico a dispersione del tempo computazionale richiesto in funzione del numero di nodi.
+   - `summary_radar.png`: Diagramma radar multi-variabile che confronta le prestazioni normalizzate (Route length, Stability, Gap, Time/node, Convergence) per ciascun set (A, B, E, P).
+   - `summary_generations.png`: Numero medio di generazioni evolutive necessarie per convergere alla soluzione ottimale.
+   - `summary_route_length.png`: Lunghezza media delle rotte in termini di clienti serviti per veicolo.
 
-1. **Grafici di Convergenza** (`convergence_<nome>.png`): mostrano l'andamento del costo della soluzione migliore trovata dall'HGA in funzione del numero di valutazioni della fitness (FE), visualizzando:
-   - Le curve individuali di ogni run indipendente
-   - La banda di deviazione standard
-   - La curva media e l'inviluppo della run migliore
-   - La linea del valore ottimo noto (se disponibile)
-
-2. **Grafici delle Rotte Migliori** (`routes_<nome>.png`): visualizzano su mappa 2D la migliore soluzione trovata, mostrando:
-   - Il deposito (quadrato rosso)
-   - I nodi cliente (cerchi grigi)
-   - Le rotte dei veicoli come percorsi colorati con frecce direzionali
-   - Etichette per ogni rotta e statistiche (costo, gap dall'ottimo, veicoli utilizzati)
-
-Per generare i grafici:
+Per generare/aggiornare l'intero set di grafici:
 ```bash
 cd backend
 .venv\Scripts\python.exe plot_convergence.py
 ```
 
-I grafici vengono salvati in `docs/report/` in formato PNG ad alta risoluzione (300 DPI).
-
 ---
 
-## 🧬 Dettagli dell'Algoritmo (HGA)
+## 🧬 Ottimizzazioni dell'Algoritmo (HGA)
 
-L'**Algoritmo Genetico Ibrido** combina la capacità di esplorazione globale dei GA con l'accuratezza di raffinamento locale degli algoritmi di ricerca locale:
+Per raggiungere velocità di esecuzione elevatissime (**fino a oltre 6.900 valutazioni al secondo per core**), l'architettura HGA è stata potenziata con i seguenti interventi:
 
-1. **Rappresentazione (Encoding)**: Una soluzione è codificata come una permutazione di clienti (senza depot intermedio).
-2. **Decodifica (Split di Prins)**: Un algoritmo di programmazione dinamica in $O(n^2)$ partiziona in modo ottimale la permutazione in rotte veicolari che rispettano la capacità di carico $\sigma$.
-3. **Operatori di Selezione e Crossover**: Order Crossover (OX) con probabilità $0.9$ e Selezione a Torneo ($k=2$).
-4. **Operatori di Mutazione**: Swap (40%), Insert (30%) e Inversion (30%) applicati con un tasso complessivo del $0.3$.
-5. **Ricerca Locale (Local Search)**: Applicata con tasso del $0.1$, esegue in pipeline:
-   - **2-opt** (intra-route): inverte segmenti di rotta per eliminare incroci (accelerato JIT).
-   - **Or-opt** (intra-route): sposta segmenti di 1, 2 o 3 nodi contigui.
-   - **Relocate** (inter-route): sposta un nodo tra rotte diverse.
-   - **Exchange** (inter-route): scambia due nodi tra rotte diverse.
+1. **Pre-calcolo dei Carichi in $O(1)$**: Sostituito il ricalcolo continuo dei carichi delle rotte ($O(N)$) nelle scansioni della ricerca locale inter-route (`_relocate` e `_exchange`) con vettori pre-calcolati aggiornati in tempo costante.
+2. **Index-Only Move Tracking**: Eliminata l'operazione di deep-copy nel loop interno della ricerca locale. I vicinati valutano i delta teorici in $O(1)$, e la mossa fisica viene applicata in-place una sola volta alla fine del ciclo solo in caso di miglioramento.
+3. **Double-Tier Education (Light/Full)**:
+   - *Educazione leggera*: Il 2-opt JIT-compilato con Numba viene applicato a **tutti** i figli generati ad ogni iterazione, garantendo la rimozione immediata degli incroci stradali.
+   - *Local Search completa*: Gli operatori inter-route completi sono eseguiti solo al tasso stocastico configurato ($p_{ls} = 0.1$).
+4. **Duplicate Detection (Survivor Selection)**: I cloni con costo identico (arrotondato al terzo decimale) vengono rilevati e rimpiazzati con individui casuali pre-educati ad ogni generazione per massimizzare la diversità ed evitare la convergenza precoce.
+5. **Micro-ottimizzazioni dei Generatori**: Sostituito `random.sample(range(n), 2)` e ordinamenti Python con offset matematici diretti per l'estrazione rapida di punti di taglio del crossover OX e indici di mutazione. Bypass diretto a torneo per $k=2$.

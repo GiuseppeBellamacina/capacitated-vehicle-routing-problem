@@ -217,4 +217,4 @@ Grafico a barre colorato per set con barre d'errore (±1 deviazione standard) ch
 
 Grafico a barre colorato per set che mostra il numero medio di clienti per veicolo (lunghezza della rotta) nella migliore soluzione trovata per ogni istanza. Il valore è annotato sopra ogni barra. Una lunghezza media più bassa indica rotte più corte e potenzialmente più bilanciate; una più alta riflette istanze con pochi veicoli rispetto al numero di clienti, che costringono a rotte più lunghe.
 
-Tutti i grafici vengono salvati in `docs/report/` in formato PNG a 300 DPI con sfondo bianco, pronti per l'inclusione nella relazione LaTeX.
+Tutti i grafici vengono salvati nelle rispettive sottocartelle di `docs/report/imgs/` in formato PNG a 300 DPI con sfondo bianco, pronti per l'inclusione nella relazione LaTeX.

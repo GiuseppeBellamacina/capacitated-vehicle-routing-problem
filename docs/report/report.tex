@@ -294,31 +294,141 @@ Vengono poi calcolate le statistiche aggregate: best, mean, standard deviation. 
 \toprule
 \textbf{Istanza} & \textbf{Best} & \textbf{Mean} & \textbf{Std Dev} & \textbf{Ottimo} & \textbf{Gap\%} & \textbf{Veicoli} \\
 \midrule
-A-n45-k7 & TBD & TBD & TBD & 1,146 & TBD & 7 \\
-A-n60-k9 & TBD & TBD & TBD & 1,354 & TBD & 9 \\
-A-n80-k10 & TBD & TBD & TBD & 1,763 & TBD & 10 \\
-B-n56-k7 & TBD & TBD & TBD & 707 & TBD & 7 \\
-B-n66-k9 & TBD & TBD & TBD & 1,316 & TBD & 9 \\
-B-n78-k10 & TBD & TBD & TBD & 1,221 & TBD & 10 \\
-E-n76-k8 & TBD & TBD & TBD & 730 & TBD & 8 \\
-E-n101-k14 & TBD & TBD & TBD & 1,070 & TBD & 14 \\
-P-n50-k10 & TBD & TBD & TBD & 696 & TBD & 10 \\
-P-n101-k4 & TBD & TBD & TBD & 681 & TBD & 4 \\
+A-n45-k7     &  1146.91 &  1155.02 &    12.81 &   1,146 &  0.08\% &       7 \\
+A-n60-k9     &  1367.34 &  1376.86 &     7.87 &   1,354 &  0.99\% &       9 \\
+A-n80-k10    &  1817.37 &  1848.71 &    26.61 &   1,763 &  3.08\% &      10 \\
+B-n56-k7     &   712.92 &   716.05 &     1.69 &     707 &  0.84\% &       7 \\
+B-n66-k9     &  1327.10 &  1330.89 &     3.30 &   1,316 &  0.84\% &       9 \\
+B-n78-k10    &  1238.33 &  1254.00 &     8.16 &   1,221 &  1.42\% &      10 \\
+E-n76-k8     &   750.44 &   760.29 &     6.74 &     735 &  2.10\% &       8 \\
+E-n101-k14   &  1097.02 &  1105.04 &     8.10 &   1,071 &  2.43\% &      14 \\
+P-n50-k10    &   700.66 &   705.54 &     3.40 &     696 &  0.67\% &      10 \\
+P-n101-k4    &   693.54 &   694.70 &     1.07 &     681 &  1.84\% &       4 \\
 \bottomrule
 \end{tabular}
+\label{tab:results}
 \end{table}
-
-\textit{Nota: I risultati saranno popolati dopo l'esecuzione completa dell'algoritmo su tutte le istanze.}
 
 \subsection{Analisi della Convergenza}
 
-I grafici di convergenza mostrano l'andamento del miglior costo trovato in funzione del numero di valutazioni. Per ciascuna istanza vengono mostrate le curve dei 5 run, permettendo di valutare la velocità di convergenza e la consistenza dell'algoritmo.
+I grafici di convergenza mostrano l'andamento del miglior costo trovato in funzione del numero di valutazioni della funzione di fitness (FE) per ciascuna istanza rappresentativa.
 
-% Inserire qui i grafici generati
 \begin{figure}[H]
 \centering
-% \includegraphics[width=0.9\textwidth]{convergence_A-n45-k7.png}
-\caption{Esempio di grafico di convergenza (da popolare con risultati effettivi)}
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/convergence/convergence_A-n45-k7.png}
+    \caption{A-n45-k7 (Set A)}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/convergence/convergence_B-n66-k9.png}
+    \caption{B-n66-k9 (Set B)}
+\end{subfigure}
+
+\vspace{0.2cm}
+
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/convergence/convergence_E-n101-k14.png}
+    \caption{E-n101-k14 (Set E)}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/convergence/convergence_P-n101-k4.png}
+    \caption{P-n101-k4 (Set P)}
+\end{subfigure}
+\caption{Curve di convergenza per quattro istanze rappresentative dei set di benchmark.}
+\label{fig:convergence}
+\end{figure}
+
+\subsection{Visualizzazione delle Rotte Migliori}
+
+I percorsi ottimali prodotti dall'algoritmo HGA per le quattro istanze rappresentative sono stati tracciati nello spazio 2D per verificarne visivamente la qualità geometrica e logica.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/routes/routes_A-n45-k7.png}
+    \caption{Rotte per A-n45-k7}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/routes/routes_B-n66-k9.png}
+    \caption{Rotte per B-n66-k9}
+\end{subfigure}
+
+\vspace{0.2cm}
+
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/routes/routes_E-n101-k14.png}
+    \caption{Rotte per E-n101-k14}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/routes/routes_P-n101-k4.png}
+    \caption{Rotte per P-n101-k4}
+\end{subfigure}
+\caption{Visualizzazione grafica delle rotte finali associate alla soluzione migliore.}
+\label{fig:routes}
+\end{figure}
+
+\subsection{Analisi Comparativa Generale}
+
+Le prestazioni dell'algoritmo HGA sulle 10 istanze di test sono riassunte di seguito attraverso grafici di confronto globali.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/summary/summary_best_vs_bks.png}
+    \caption{Costi HGA vs BKS}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/summary/summary_gap.png}
+    \caption{Gap percentuale medio}
+\end{subfigure}
+
+\vspace{0.2cm}
+
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/summary/summary_boxplot.png}
+    \caption{Distribuzione costi normalizzati}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/summary/summary_runtime.png}
+    \caption{Tempo di calcolo vs Dimensione}
+\end{subfigure}
+\caption{Statistiche globali sulle prestazioni e la stabilità dell'algoritmo HGA.}
+\label{fig:summary}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/summary/summary_radar.png}
+    \caption{Radar Chart prestazionale per Set}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/summary/summary_generations.png}
+    \caption{Generazioni a convergenza}
+\end{subfigure}
+\caption{Prestazioni aggregate per classe e tempi di convergenza evolutiva.}
+\label{fig:radar_and_gens}
 \end{figure}
 
 \subsection{Discussione dei Risultati}

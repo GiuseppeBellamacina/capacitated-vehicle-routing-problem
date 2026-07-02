@@ -45,10 +45,12 @@ def load_max_evals() -> int:
 
 MAX_EVALS = load_max_evals()
 
-# Select 3 representative instances (one per set A, E, P)
+# Select representative instances
 REPRESENTATIVE_INSTANCES = [
     "A-n45-k7",
-    "E-n76-k8",
+    "B-n66-k9",
+    "E-n101-k14",
+    "P-n50-k10",
     "P-n101-k4"
 ]
 
