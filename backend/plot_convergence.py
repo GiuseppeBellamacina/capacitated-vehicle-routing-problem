@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import matplotlib.pyplot as plt
+import numpy as np
 import yaml
 
 RESULTS_FILE = Path(__file__).parent.parent / "results" / "results.json"
@@ -62,18 +63,41 @@ def generate_plots():
         
         plt.figure(figsize=(8, 5))
         
-        # Plot each run
-        for run_idx, run_history in enumerate(convergence):
+        # Interpolate each run's history to a common grid of 100 points
+        grid_points = 100
+        x_vals = np.linspace(0, MAX_EVALS, grid_points)
+        interpolated_runs = []
+        
+        for run_history in convergence:
             L = len(run_history)
             if L > 1:
-                x_vals = [i * (MAX_EVALS / (L - 1)) for i in range(L)]
+                x_original = np.linspace(0, MAX_EVALS, L)
+                y_interp = np.interp(x_vals, x_original, run_history)
+                interpolated_runs.append(y_interp)
             else:
-                x_vals = [0]
-            plt.plot(x_vals, run_history, label=f"Run {run_idx + 1}", linewidth=1.5, alpha=0.8)
+                interpolated_runs.append(np.full_like(x_vals, run_history[0]))
+                
+        conv_matrix = np.array(interpolated_runs)
+        mean_history = np.mean(conv_matrix, axis=0)
+        std_history = np.std(conv_matrix, axis=0)
+        min_history = np.min(conv_matrix, axis=0)
+        
+        # 1. Plot individual runs with light gray color
+        for run_idx in range(conv_matrix.shape[0]):
+            plt.plot(x_vals, conv_matrix[run_idx], color="#bdc3c7", alpha=0.4, linewidth=0.8, label="Individual Runs" if run_idx == 0 else "")
+            
+        # 2. Plot standard deviation shaded band
+        plt.fill_between(x_vals, mean_history - std_history, mean_history + std_history, color="#3498db", alpha=0.15, label="Standard Deviation")
+        
+        # 3. Plot mean history with a solid blue line
+        plt.plot(x_vals, mean_history, color="#2980b9", linewidth=2.0, label="Mean Cost")
+        
+        # 4. Plot best overall envelope with a green dotted line
+        plt.plot(x_vals, min_history, color="#27ae60", linestyle=":", linewidth=1.5, label="Best Run Envelope")
 
-        # Plot optimal line if known
+        # 5. Plot optimal line if known
         if optimal:
-            plt.axhline(y=optimal, color="r", linestyle="--", label=f"Optimal ({optimal})", linewidth=1.2)
+            plt.axhline(y=optimal, color="#c0392b", linestyle="--", label=f"Optimal ({optimal})", linewidth=1.5)
 
         plt.title(f"Convergence Curves - Instance {name}")
         plt.xlabel("Fitness Evaluations (FE)")

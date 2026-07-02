@@ -558,6 +558,7 @@ class HybridGeneticAlgorithm:
             self.best_cost_history.append(self.best_solution.cost)
 
         last_recorded_evals = 0
+        last_callback_time = 0.0
         print("  [HGA Run] Starting evolution loop...")
 
         from tqdm import tqdm
@@ -599,20 +600,21 @@ class HybridGeneticAlgorithm:
 
                 new_population.append(child)
 
+                # Track best solution and convergence in real-time
+                if child.cost < self.best_solution.cost - 1e-8:
+                    self.best_solution = child
+                    best_gen = self.generation
+
+                if track_convergence and self.evaluations - last_recorded_evals >= convergence_interval:
+                    self.best_cost_history.append(self.best_solution.cost)
+                    last_recorded_evals = self.evaluations
+
             population = new_population
 
-            # Update best
-            current_best = min(population, key=lambda s: s.cost)
-            if current_best.cost < self.best_solution.cost - 1e-8:
-                self.best_solution = current_best
-                best_gen = self.generation
-
-            if track_convergence and self.evaluations - last_recorded_evals >= convergence_interval:
-                self.best_cost_history.append(self.best_solution.cost)
-                last_recorded_evals = self.evaluations
-
-            # WebSocket callback
-            if self.callback and self.generation % 10 == 0:
+            # WebSocket callback with time-based throttling (max 10Hz) and instant updates on improvement
+            now = time.time()
+            is_new_best = (best_gen == self.generation)
+            if self.callback and (is_new_best or (now - last_callback_time >= 0.1) or self.evaluations >= self.max_evaluations):
                 self.callback({
                     "generation": self.generation,
                     "evaluations": self.evaluations,
@@ -621,6 +623,7 @@ class HybridGeneticAlgorithm:
                     "population_size": len(population),
                     "routes": [[int(n) for n in r] for r in (self.best_solution.routes or [])],
                 })
+                last_callback_time = now
 
             if self.evaluations >= self.max_evaluations:
                 break
