@@ -150,24 +150,71 @@ Per rendere fattibile l'esecuzione di 350.000 valutazioni in tempi ragionevoli s
 
 ## 8. Visualizzazione dei Risultati
 
-Lo script `plot_convergence.py` genera automaticamente due tipologie di grafici per le 3 istanze rappresentative selezionate (una per ogni set del benchmark: `A-n45-k7`, `E-n76-k8`, `P-n101-k4`):
+Lo script `plot_convergence.py` genera automaticamente **nove tipologie di grafici** in stile editoriale (font serif, palette Tol Vibrant, 300 DPI), suddivisi in due categorie:
 
-### 8.1 Grafici di Convergenza
-I grafici di convergenza (`convergence_<nome>.png`) illustrano il processo di apprendimento dell'HGA, mostrando l'evoluzione del miglior costo trovato in funzione del numero di valutazioni della funzione fitness (FE). Ogni grafico include:
+### 8.1 Grafici per Istanza (3 istanze rappresentative)
+
+**8.1.1 Grafici di Convergenza** (`convergence_<nome>.png`)
+
+Illustrano il processo di apprendimento dell'HGA per le istanze `A-n45-k7`, `E-n76-k8` e `P-n101-k4`, mostrando l'evoluzione del miglior costo in funzione del numero di valutazioni della fitness (FE). Ogni grafico include:
 - Le curve delle 5 run indipendenti (grigio chiaro semi-trasparente)
-- La banda di deviazione standard (±1σ) attorno alla media
-- La curva del costo medio (blu)
+- La banda di deviazione standard (±1σ) attorno alla media (blu tenue)
+- La curva del costo medio (blu pieno)
 - L'inviluppo della run migliore (verde tratteggiato)
-- La linea del valore ottimo noto, se disponibile nel benchmark (rosso tratteggiato)
+- La linea del valore BKS (*best-known solution*), se noto (rosso punteggiato)
+- Titolo compatto con nome istanza, best cost, gap % e numero di run
 
-### 8.2 Grafici delle Rotte Migliori
-I grafici delle rotte (`routes_<nome>.png`) forniscono una visualizzazione geospaziale della migliore soluzione complessiva trovata tra tutte le 5 run. Su una mappa 2D delle coordinate dei nodi vengono disegnati:
-- Il **deposito** come quadrato rosso prominente con etichetta
-- I **nodi cliente** come cerchi grigio-scuro
-- Le **rotte dei veicoli** come percorsi colorati con frecce direzionali che partono e tornano al deposito
-- Un'**etichetta** `R1`, `R2`, … posizionata accanto al primo nodo di ciascuna rotta per identificarne l'ordine
-- Nel titolo: nome dell'istanza, costo della soluzione, gap percentuale dall'ottimo e numero di veicoli utilizzati
+**8.1.2 Grafici delle Rotte Migliori** (`routes_<nome>.png`)
 
-La palette di colori scelta è qualitativa e adatta a daltonici (colorblind-friendly), con 20 colori distinti per supportare istanze con molti veicoli.
+Forniscono una visualizzazione geospaziale della migliore soluzione complessiva trovata tra tutte le 5 run per ciascuna istanza rappresentativa. Su una mappa 2D vengono disegnati:
+- Il **deposito** come diamante rosso (`#CC3311`) con legenda dedicata
+- I **nodi cliente** come cerchi grigio-scuro, dimensionati proporzionalmente alla domanda (da 18 a 120 pt² con legenda *Demand*)
+- Le **rotte dei veicoli** come archi curvi colorati con frecce direzionali (curvatura alternata `arc3,rad=±0.10` per evitare sovrapposizioni)
+- Un'**etichetta numerata** (①, ②, …) al midpoint del primo arco depot→cliente di ciascuna rotta
+- Nel titolo: nome istanza, costo, gap %, veicoli utilizzati/disponibili e numero di clienti
 
-I grafici vengono salvati in `docs/report/` in formato PNG a 300 DPI, pronti per l'inclusione nella relazione LaTeX.
+La palette è la Tol Vibrant qualitativa (20 colori, colorblind-friendly).
+
+### 8.2 Grafici Riassuntivi (tutte le istanze disponibili)
+
+**8.2.1 Confronto Best vs BKS** (`summary_best_vs_bks.png`)
+
+Grafico a barre raggruppate che confronta, per ogni istanza con BKS noto, il miglior costo trovato dall'HGA (barra colorata per set) con il valore ottimo di riferimento (barra grigia tratteggiata). Il gap percentuale è annotato sopra ogni barra HGA. Fornisce una visione d'insieme immediata della qualità delle soluzioni.
+
+**8.2.2 Gap dall'Ottimo** (`summary_gap.png`)
+
+Barre orizzontali (verticali con rotazione) che mostrano lo scostamento percentuale `(best − BKS) / BKS × 100` per ogni istanza. Le barre sono colorate per set (A: blu, B: arancione, E: verde, P: rosso) con il valore esatto annotato. Una linea di zero al 0% separa visivamente i gap positivi.
+
+**8.2.3 Box Plot della Distribuzione dei Costi** (`summary_boxplot.png`)
+
+Box plot normalizzati per BKS (`costo / BKS × 100`) che mostrano la distribuzione dei costi delle 5 run indipendenti per ogni istanza. La normalizzazione rende comparabile la variabilità tra istanze di scala diversa. Include:
+- Riquadri colorati per set con trasparenza
+- Mediana in grigio scuro
+- Outlier in rosso
+- Linea di riferimento al 100% (BKS)
+- Utile per valutare la **stabilità** e **robustezza** dell'algoritmo
+
+**8.2.4 Tempo di Esecuzione vs Dimensione** (`summary_runtime.png`)
+
+Scatter plot che mette in relazione il tempo di esecuzione totale (5 run) con la dimensione dell'istanza (numero di nodi). Ogni punto è colorato per set ed etichettato con il nome dell'istanza. Mostra la **scalabilità computazionale** dell'HGA al crescere della taglia del problema.
+
+**8.2.5 Radar Chart Comparativa per Set** (`summary_radar.png`)
+
+Grafico radar (spider) che confronta le performance normalizzate dei 4 set (A, B, E, P) su 5 metriche aggregate:
+1. **Route length** — lunghezza media delle rotte (clienti per veicolo, più bassa = rotte più bilanciate)
+2. **Stability** — coefficiente di variazione medio `std_dev/mean` (più basso = più stabile)
+3. **Gap %** — gap percentuale medio dal BKS
+4. **Time/node** — tempo di esecuzione medio per nodo (secondi)
+5. **Convergence** — numero medio di generazioni per raggiungere il best
+
+Ogni metrica è normalizzata con **soft range $[0.15, 1.0]$** (anziché $[0, 1]$) per evitare che il set peggiore collassi a zero su un asse, mantenendo sempre un footprint visibile. L'area colorata di ciascun set fornisce un'impronta visiva immediata della sua performance complessiva.
+
+**8.2.6 Generazioni per Raggiungere il Best** (`summary_generations.png`)
+
+Grafico a barre colorato per set con barre d'errore (±1 deviazione standard) che mostra il numero medio di generazioni necessarie all'HGA per raggiungere la migliore soluzione in ciascuna istanza. Ogni barra riporta l'annotazione `media±s.d.`. Questo grafico evidenzia la **velocità di convergenza** dell'algoritmo: valori più bassi indicano che l'HGA trova rapidamente buone soluzioni, valori più alti suggeriscono una convergenza più lenta o un landscape di fitness più complesso.
+
+**8.2.7 Lunghezza Media delle Rotte** (`summary_route_length.png`)
+
+Grafico a barre colorato per set che mostra il numero medio di clienti per veicolo (lunghezza della rotta) nella migliore soluzione trovata per ogni istanza. Il valore è annotato sopra ogni barra. Una lunghezza media più bassa indica rotte più corte e potenzialmente più bilanciate; una più alta riflette istanze con pochi veicoli rispetto al numero di clienti, che costringono a rotte più lunghe.
+
+Tutti i grafici vengono salvati in `docs/report/` in formato PNG a 300 DPI con sfondo bianco, pronti per l'inclusione nella relazione LaTeX.
