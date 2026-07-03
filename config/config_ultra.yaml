@@ -1,0 +1,22 @@
+# ==============================================================================
+# CONFIGURAZIONE HGA — Variante "Ultra" (popolazione minima, caso estremo)
+# ==============================================================================
+# Strategia: solo 5 individui (~47.000 generazioni), massimo numero di cicli
+# evolutivi. Elitismo 20% (1 individuo), torneo a 2 (massima pressione su pop
+# piccola), granularità minima (local search fulminea).
+# Caso limite: testa se la pura velocità di convergenza compensa la scarsa
+# diversità genetica.
+
+population_size: 5
+max_evaluations: 350000
+runs: 5
+crossover_rate: 0.8
+mutation_rate: 0.1
+local_search_rate: 0.1
+tournament_size: 2
+elite_count: 1
+local_search_max_iter: 2
+granular_size: 2
+
+output_dir: results/config_ultra
+imgs_dir: docs/report/imgs/config_ultra

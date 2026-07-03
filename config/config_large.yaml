@@ -1,0 +1,20 @@
+# ==============================================================================
+# CONFIGURAZIONE HGA — Variante "Large" (popolazione grande, massima diversità)
+# ==============================================================================
+# Strategia: 100 individui (~2.300 generazioni), pressione selettiva compensata
+# (tournament=4, elite=5). Privilegia l'esplorazione globale a scapito della
+# velocità di convergenza — ideale per paesaggi di fitness complessi.
+
+population_size: 100
+max_evaluations: 350000
+runs: 5
+crossover_rate: 0.8
+mutation_rate: 0.1
+local_search_rate: 0.1
+tournament_size: 4
+elite_count: 5
+local_search_max_iter: 2
+granular_size: 15
+
+output_dir: results/config_large
+imgs_dir: docs/report/imgs/config_large

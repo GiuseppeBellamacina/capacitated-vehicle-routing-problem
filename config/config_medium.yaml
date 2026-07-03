@@ -1,0 +1,19 @@
+# ==============================================================================
+# CONFIGURAZIONE HGA — Variante "Medium" (popolazione intermedia, bilanciata)
+# ==============================================================================
+# Strategia: 30 individui (~7.700 generazioni), pressione selettiva moderata.
+# Compromesso tra esplorazione (pop più grande) e sfruttamento (più generazioni).
+
+population_size: 30
+max_evaluations: 350000
+runs: 5
+crossover_rate: 0.8
+mutation_rate: 0.1
+local_search_rate: 0.1
+tournament_size: 3
+elite_count: 3
+local_search_max_iter: 2
+granular_size: 7
+
+output_dir: results/config_medium
+imgs_dir: docs/report/imgs/config_medium

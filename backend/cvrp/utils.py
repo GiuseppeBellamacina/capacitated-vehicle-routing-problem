@@ -1,6 +1,36 @@
 """Utility functions for CVRP solver."""
 
+import json
 import math
+from pathlib import Path
+
+# ── Shared constants ─────────────────────────────────────────────────────────
+
+DEFAULT_MAX_EVALUATIONS = 350000
+
+
+def discover_config_results(
+    results_root: str | Path | None = None,
+) -> dict[str, dict]:
+    """Return ``{config_name: results_dict}`` for every results/config_*/results.json.
+
+    Scans subdirectories of *results_root* (defaults to ``results/`` next to
+    the project root) and loads each ``results.json`` found.
+    """
+    if results_root is None:
+        results_root = Path(__file__).parent.parent.parent / "results"
+    results_root = Path(results_root)
+    config_results: dict[str, dict] = {}
+    if not results_root.exists():
+        return config_results
+    for subdir in sorted(results_root.iterdir()):
+        if not subdir.is_dir():
+            continue
+        rf = subdir / "results.json"
+        if rf.exists():
+            with open(rf) as f:
+                config_results[subdir.name] = json.load(f)
+    return config_results
 
 
 def euclidean_distance(p1: tuple[int, int], p2: tuple[int, int]) -> float:

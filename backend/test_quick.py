@@ -5,7 +5,7 @@ import sys
 sys.path.insert(0, ".")
 
 from cvrp.hga import HybridGeneticAlgorithm
-from cvrp.instance import read_instance
+from cvrp.instance import discover_instances, read_instance
 
 
 def test_instance(name: str):
@@ -51,5 +51,15 @@ def test_instance(name: str):
 
 
 if __name__ == "__main__":
-    test_instance("A-n45-k7")
-    test_instance("P-n50-k10")
+    instances = discover_instances()
+    if instances:
+        # Test first instance from each set for quick coverage
+        tested_sets: set[str] = set()
+        for name in instances:
+            set_key = name[0]
+            if set_key in ("A", "B", "E", "P") and set_key not in tested_sets:
+                tested_sets.add(set_key)
+                test_instance(name)
+        if not tested_sets:
+            # Fallback: test first available
+            test_instance(instances[0])

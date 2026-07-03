@@ -110,11 +110,9 @@ pip-reset() {
 
 # ── CVRP specific ────────────────────────────────────────────────────────────
 
-# Lancia esperimenti (uso: run-exp [path/to/config.yaml])
-# Esempio:  run-exp                          # usa config/config.yaml
-#           run-exp config/custom.yaml        # usa config personalizzato
+# Lancia esperimenti (sbatch cluster/run.sh — esegue tutte le config in sequenza)
 run-exp() {
-    cd "$PROJ_DIR" && export CONFIG="${1:-}" && sbatch cluster/run.sh
+    cd "$PROJ_DIR" && sbatch cluster/run.sh
 }
 
 # Genera grafici dai risultati

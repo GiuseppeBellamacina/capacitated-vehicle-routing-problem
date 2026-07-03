@@ -1,57 +1,42 @@
-"""Script to generate publication-quality plots for the CVRP HGA report.
+"""Generate publication-quality plots for the CVRP HGA report.
 
-Generates:
-  - Convergence curves for 3 representative instances
-  - Best-route 2D visualizations for 3 representative instances
-  - Summary chart: best cost vs BKS across all instances, grouped by set
-  - Gap chart: % gap from optimal for all instances
-  - Box plot: per-run cost distribution showing algorithm stability
-  - Runtime chart: execution time vs instance dimension
-  - Radar chart: normalized performance comparison across sets A/B/E/P
+Usage:
+    python plot_convergence.py --results ../results/config_small/results.json --imgs ../docs/report/imgs/config_small
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
 from matplotlib.lines import Line2D
 from matplotlib.patches import FancyArrowPatch
 
-# Allow importing from cvrp package
 sys.path.insert(0, str(Path(__file__).parent))
 
-from cvrp.instance import read_instance
+from cvrp.instance import (
+    discover_instances,
+    get_representative_instances,
+    read_instance,
+)
+from cvrp.utils import DEFAULT_MAX_EVALUATIONS as MAX_EVALS
+from cvrp.utils import discover_config_results
 
-RESULTS_FILE = Path(__file__).parent.parent / "results" / "results.json"
-IMGS_DIR = Path(__file__).parent.parent / "docs" / "report" / "imgs"
+# Fixed paths
 INSTANCES_DIR = Path(__file__).parent.parent / "instances"
 
-# Output subdirectories by chart type
-CONV_DIR = IMGS_DIR / "convergence"
-ROUTES_DIR = IMGS_DIR / "routes"
-SUMMARY_DIR = IMGS_DIR / "summary"
+# Output subdirectories by chart type — set after CLI parsing
+CONV_DIR = None
+ROUTES_DIR = None
+SUMMARY_DIR = None
 
+# Discovered at module load — auto-picks up new .vrp files
+ALL_INSTANCES = discover_instances()
+REPRESENTATIVE_INSTANCES = get_representative_instances()
 
-# Load max evaluations from config.yaml dynamically
-def load_max_evals() -> int:
-    config_path = Path(__file__).parent.parent / "config" / "config.yaml"
-    if config_path.exists():
-        with open(config_path) as f:
-            cfg = yaml.safe_load(f)
-            return cfg.get("max_evaluations", 350000)
-    return 350000
-
-
-MAX_EVALS = load_max_evals()
-
-# Select representative instances
-REPRESENTATIVE_INSTANCES = ["A-n45-k7", "B-n66-k9", "P-n50-k10", "P-n101-k4"]
-
-# Color palette for routes -- elegant, colorblind-friendly, publication-quality
-# Based on the Tol Vibrant qualitative scheme
+# Colors
 ROUTE_COLORS = [
     "#0077BB",
     "#EE7733",
@@ -75,34 +60,45 @@ ROUTE_COLORS = [
     "#BB6644",
 ]
 
-# All benchmark instances (ordered by set)
-ALL_INSTANCES = [
-    "A-n45-k7",
-    "A-n60-k9",
-    "A-n80-k10",
-    "B-n56-k7",
-    "B-n66-k9",
-    "B-n78-k10",
-    "E-n76-k8",
-    "E-n101-k14",
-    "P-n50-k10",
-    "P-n101-k4",
-]
+SET_COLORS = {"A": "#0077BB", "B": "#EE7733", "E": "#009988", "P": "#CC3311"}
 
-# Set-level colors for summary charts
-SET_COLORS = {
-    "A": "#0077BB",
-    "B": "#EE7733",
-    "E": "#009988",
-    "P": "#CC3311",
+CONFIG_COLORS = {
+    "config_small": "#0077BB",
+    "config_medium": "#EE7733",
+    "config_large": "#009988",
+    "config_ultra": "#CC3311",
+}
+CONFIG_LABELS = {
+    "config_small": "Small (pop=10)",
+    "config_medium": "Medium (pop=30)",
+    "config_large": "Large (pop=100)",
+    "config_ultra": "Ultra (pop=5)",
 }
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="CVRP HGA plot generator")
+    parser.add_argument(
+        "--results",
+        default="../results/results.json",
+        help="Path to results.json (default: ../results/results.json)",
+    )
+    parser.add_argument(
+        "--imgs",
+        default="../docs/report/imgs",
+        help="Base directory for output images (default: ../docs/report/imgs)",
+    )
+    parser.add_argument(
+        "--comparison-only",
+        action="store_true",
+        help="Only generate the cross-config comparison chart (ignores --results/--imgs)",
+    )
+    return parser.parse_args()
+
+
 def _set_publication_style():
-    """Apply a clean, publication-quality matplotlib style."""
     plt.rcParams.update(
         {
-            # Typography
             "font.family": "serif",
             "font.serif": ["Times New Roman", "DejaVu Serif", "Liberation Serif"],
             "font.size": 9,
@@ -112,7 +108,6 @@ def _set_publication_style():
             "ytick.labelsize": 7.5,
             "legend.fontsize": 7.5,
             "figure.titlesize": 11,
-            # Layout
             "axes.spines.top": False,
             "axes.spines.right": False,
             "axes.linewidth": 0.6,
@@ -125,19 +120,16 @@ def _set_publication_style():
             "grid.alpha": 0.12,
             "grid.linestyle": "-",
             "grid.linewidth": 0.4,
-            # Figure
             "figure.dpi": 150,
             "savefig.dpi": 300,
             "savefig.bbox": "tight",
             "savefig.pad_inches": 0.08,
-            # Legend
             "legend.frameon": True,
             "legend.framealpha": 0.92,
             "legend.edgecolor": "#cccccc",
             "legend.fancybox": False,
             "legend.borderpad": 0.4,
             "legend.borderaxespad": 0.5,
-            # Misc
             "axes.axisbelow": True,
             "lines.linewidth": 1.2,
             "patch.linewidth": 0.6,
@@ -145,32 +137,30 @@ def _set_publication_style():
     )
 
 
+def _get_available(results: dict) -> list[str]:
+    return [n for n in ALL_INSTANCES if n in results]
+
+
 # =============================================================================
-#  Convergence & Route plots (representative instances)
+#  Convergence & Route plots
 # =============================================================================
 
 
 def generate_convergence_plots(results: dict):
-    """Generate publication-quality convergence curve plots."""
     _set_publication_style()
-
     for name in REPRESENTATIVE_INSTANCES:
         if name not in results:
-            print(f"Warning: {name} results not found in results.json. Skipping.")
+            print(f"Warning: {name} not found. Skipping.")
             continue
-
         res = results[name]
         convergence = res["convergence"]
         optimal = res["optimal"]
         best_cost = res["best"]
 
         fig, ax = plt.subplots(figsize=(6.0, 3.6))
-
-        # Interpolate each run's history to a common grid of 100 points
         grid_points = 100
         x_vals = np.linspace(0, MAX_EVALS, grid_points)
         interpolated_runs = []
-
         for run_history in convergence:
             L = len(run_history)
             if L > 1:
@@ -185,7 +175,6 @@ def generate_convergence_plots(results: dict):
         std_history = np.std(conv_matrix, axis=0)
         min_history = np.min(conv_matrix, axis=0)
 
-        # 1. Individual runs -- subtle gray
         for run_idx in range(conv_matrix.shape[0]):
             ax.plot(
                 x_vals,
@@ -195,8 +184,6 @@ def generate_convergence_plots(results: dict):
                 linewidth=0.6,
                 label="Individual runs" if run_idx == 0 else "",
             )
-
-        # 2. Standard deviation band
         ax.fill_between(
             x_vals,
             mean_history - std_history,
@@ -205,11 +192,7 @@ def generate_convergence_plots(results: dict):
             alpha=0.10,
             label="+/-1 s.d.",
         )
-
-        # 3. Mean history
         ax.plot(x_vals, mean_history, color="#0077BB", linewidth=1.6, label="Mean")
-
-        # 4. Best envelope
         ax.plot(
             x_vals,
             min_history,
@@ -218,8 +201,6 @@ def generate_convergence_plots(results: dict):
             linewidth=1.2,
             label="Best",
         )
-
-        # 5. Optimal reference line
         if optimal:
             ax.axhline(
                 y=optimal,
@@ -229,21 +210,18 @@ def generate_convergence_plots(results: dict):
                 label=f"BKS ({optimal})",
             )
 
-        # Title
         gap_str = ""
         if optimal:
             gap = ((best_cost - optimal) / optimal) * 100
             gap_str = f" (gap {gap:+.2f}%)"
         ax.set_title(
-            f"{name}  --  Convergence  |  "
-            f"Best: {best_cost:.0f}{gap_str}  |  "
+            f"{name}  --  Convergence  |  Best: {best_cost:.0f}{gap_str}  |  "
             f"Runs: {conv_matrix.shape[0]}",
             fontsize=9.5,
             fontweight="normal",
             loc="center",
             pad=10,
         )
-
         ax.set_xlabel("Fitness evaluations (FE)")
         ax.set_ylabel("Cost")
         ax.grid(True)
@@ -264,41 +242,33 @@ def generate_convergence_plots(results: dict):
 
 
 def generate_route_plots(results: dict):
-    """Generate publication-quality best-route visualization on 2D maps."""
     _set_publication_style()
-
     for name in REPRESENTATIVE_INSTANCES:
         if name not in results:
-            print(
-                f"Warning: {name} results not found in results.json. Skipping route plot."
-            )
+            print(f"Warning: {name} not found. Skipping route plot.")
             continue
 
         instance_path = INSTANCES_DIR / f"{name}.vrp"
         if not instance_path.exists():
-            print(
-                f"Warning: Instance file {instance_path} not found. Skipping route plot."
-            )
+            print(f"Warning: Instance file {instance_path} not found. Skipping.")
             continue
 
         res = results[name]
         routes = res.get("routes", [])
         if not routes:
-            print(f"Warning: No routes found for {name}. Skipping route plot.")
+            print(f"Warning: No routes for {name}. Skipping.")
             continue
 
         instance = read_instance(instance_path)
         coords = instance.node_coords
         depot_idx = instance.depot
         demands = instance.demands
-
         best_cost = res["best"]
         optimal = res.get("optimal")
         num_vehicles_used = len(routes)
 
         fig, ax = plt.subplots(figsize=(6.0, 6.0 * 0.75))
 
-        # Axis limits with 6% padding
         depot_x, depot_y = coords[depot_idx]
         all_x = [c[0] for c in coords]
         all_y = [c[1] for c in coords]
@@ -309,13 +279,10 @@ def generate_route_plots(results: dict):
         ax.set_xlim(x_min - x_pad, x_max + x_pad)
         ax.set_ylim(y_min - y_pad, y_max + y_pad)
 
-        # Draw route edges (curved, with arrows)
         for ri, route in enumerate(routes):
             color = ROUTE_COLORS[ri % len(ROUTE_COLORS)]
             path_nodes = [depot_idx] + route + [depot_idx]
-            n_seg = len(path_nodes) - 1
-
-            for si in range(n_seg):
+            for si in range(len(path_nodes) - 1):
                 x0, y0 = coords[path_nodes[si]]
                 x1, y1 = coords[path_nodes[si + 1]]
                 rad_sign = 1 if si % 2 == 0 else -1
@@ -334,13 +301,7 @@ def generate_route_plots(results: dict):
                 )
                 ax.add_patch(patch)
 
-        # Customer nodes (sized by demand)
-        customer_nodes: list[int] = []
-        for route in routes:
-            for n in route:
-                if n not in customer_nodes:
-                    customer_nodes.append(n)
-
+        customer_nodes = list({n for route in routes for n in route})
         cx_vals = [coords[n][0] for n in customer_nodes]
         cy_vals = [coords[n][1] for n in customer_nodes]
         demand_vals = np.array([demands[n] for n in customer_nodes], dtype=float)
@@ -362,8 +323,6 @@ def generate_route_plots(results: dict):
             linewidths=0.5,
             alpha=0.88,
         )
-
-        # Depot
         ax.scatter(
             [depot_x],
             [depot_y],
@@ -414,22 +373,21 @@ def generate_route_plots(results: dict):
             legend_sizes = [
                 18 + (d - d_min) / (d_max - d_min) * 102 for d in legend_demands
             ]
-            legend_handles = []
-            for d_val, s_val in zip(legend_demands, legend_sizes):
-                legend_handles.append(
-                    Line2D(
-                        [0],
-                        [0],
-                        marker="o",
-                        color="none",
-                        markerfacecolor="#444444",
-                        markeredgecolor="white",
-                        markeredgewidth=0.5,
-                        markersize=np.sqrt(s_val),
-                        alpha=0.88,
-                        label=f"{int(d_val)}",
-                    )
+            legend_handles = [
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="none",
+                    markerfacecolor="#444444",
+                    markeredgecolor="white",
+                    markeredgewidth=0.5,
+                    markersize=np.sqrt(s_val),
+                    alpha=0.88,
+                    label=f"{int(d_val)}",
                 )
+                for d_val, s_val in zip(legend_demands, legend_sizes)
+            ]
             leg1 = ax.legend(
                 handles=legend_handles,
                 loc="lower left",
@@ -441,7 +399,6 @@ def generate_route_plots(results: dict):
             )
             ax.add_artist(leg1)
 
-        # Depot legend
         depot_handle = Line2D(
             [0],
             [0],
@@ -460,7 +417,6 @@ def generate_route_plots(results: dict):
             borderpad=0.5,
         )
 
-        # Title
         gap_str = ""
         if optimal:
             gap = ((best_cost - optimal) / optimal) * 100
@@ -492,29 +448,18 @@ def generate_route_plots(results: dict):
 
 
 # =============================================================================
-#  Summary charts (all instances)
+#  Summary charts
 # =============================================================================
 
 
-def _get_available(results: dict) -> list[str]:
-    """Return ALL_INSTANCES filtered to those present in results."""
-    return [n for n in ALL_INSTANCES if n in results]
-
-
 def generate_summary_chart(results: dict):
-    """Grouped bar chart: best cost vs BKS for all instances, grouped by set."""
     _set_publication_style()
-
     available = _get_available(results)
     if not available:
-        print("Warning: No results available for summary chart.")
+        print("Warning: No results for summary chart.")
         return
 
-    # Build data (only instances with known BKS for the grouped comparison)
-    labels = []
-    best_vals = []
-    opt_vals = []
-    bar_colors = []
+    labels, best_vals, opt_vals, bar_colors = [], [], [], []
     for name in available:
         r = results[name]
         if not r["optimal"]:
@@ -525,7 +470,7 @@ def generate_summary_chart(results: dict):
         bar_colors.append(SET_COLORS[name[0]])
 
     if not labels:
-        print("Warning: No instances with known BKS for summary chart.")
+        print("Warning: No instances with BKS for summary chart.")
         return
 
     fig, ax = plt.subplots(figsize=(7.5, 3.8))
@@ -554,7 +499,6 @@ def generate_summary_chart(results: dict):
         label="BKS",
     )
 
-    # Annotate gap % above bars
     for i, name in enumerate(labels):
         r = results[name]
         if r["optimal"]:
@@ -589,17 +533,13 @@ def generate_summary_chart(results: dict):
 
 
 def generate_gap_chart(results: dict):
-    """Bar chart of % gap from optimal for all instances, colored by set."""
     _set_publication_style()
-
     available = _get_available(results)
     if not available:
-        print("Warning: No results available for gap chart.")
+        print("Warning: No results for gap chart.")
         return
 
-    labels = []
-    gaps = []
-    colors = []
+    labels, gaps, colors = [], [], []
     for name in available:
         r = results[name]
         if r["optimal"]:
@@ -646,18 +586,13 @@ def generate_gap_chart(results: dict):
 
 
 def generate_boxplot(results: dict):
-    """Box plot of per-run costs across all instances showing HGA stability."""
     _set_publication_style()
-
     available = _get_available(results)
     if not available:
-        print("Warning: No results available for boxplot.")
+        print("Warning: No results for boxplot.")
         return
 
-    # Normalize each instance's per-run costs by its BKS for cross-instance comparability
-    data = []
-    labels = []
-    colors = []
+    data, labels, colors = [], [], []
     for name in available:
         r = results[name]
         if not r["optimal"]:
@@ -669,11 +604,10 @@ def generate_boxplot(results: dict):
         colors.append(SET_COLORS[name[0]])
 
     if not data:
-        print("Warning: No instances with known BKS for boxplot.")
+        print("Warning: No instances with BKS for boxplot.")
         return
 
     fig, ax = plt.subplots(figsize=(7.5, 3.8))
-
     bp = ax.boxplot(
         data,
         patch_artist=True,
@@ -715,22 +649,18 @@ def generate_boxplot(results: dict):
 
 
 def generate_runtime_chart(results: dict):
-    """Scatter plot: execution time vs instance dimension, colored by set."""
     _set_publication_style()
-
     available = _get_available(results)
     if not available:
-        print("Warning: No results available for runtime chart.")
+        print("Warning: No results for runtime chart.")
         return
 
     fig, ax = plt.subplots(figsize=(5.5, 3.3))
-
     for name in available:
         r = results[name]
         dim = r["dimension"]
         t = r["execution_time"]
-        set_name = name[0]
-        color = SET_COLORS[set_name]
+        color = SET_COLORS[name[0]]
         ax.scatter(
             dim,
             t,
@@ -787,19 +717,12 @@ def generate_runtime_chart(results: dict):
 
 
 def generate_radar_chart(results: dict):
-    """Radar/spider chart comparing normalized performance across the 4 sets.
-
-    Aggregates per-set averages and normalizes each metric to [0, 1]
-    where 1.0 = best performance across all sets.
-    """
     _set_publication_style()
-
     available = _get_available(results)
     if not available:
-        print("Warning: No results available for radar chart.")
+        print("Warning: No results for radar chart.")
         return
 
-    # Collect per-instance data, only instances with known BKS
     sets_data: dict[str, list[dict]] = {"A": [], "B": [], "E": [], "P": []}
     for name in available:
         r = results[name]
@@ -808,13 +731,11 @@ def generate_radar_chart(results: dict):
         set_name = name[0]
         sets_data[set_name].append(r)
 
-    # Ensure at least one instance per set
     active_sets = [s for s in ["A", "B", "E", "P"] if sets_data[s]]
     if len(active_sets) < 2:
-        print("Warning: Need at least 2 sets with data for radar chart.")
+        print("Warning: Need at least 2 sets for radar chart.")
         return
 
-    # Compute per-set aggregates
     set_metrics: dict[str, dict[str, float]] = {}
     print("\n  [Radar] Raw per-set metrics:")
     for s in active_sets:
@@ -831,7 +752,6 @@ def generate_radar_chart(results: dict):
         total_gens = sum(sum(r["generations_to_best"]) for r in instances)
         total_runs = sum(len(r["generations_to_best"]) for r in instances)
         avg_gens = total_gens / total_runs if total_runs else 0
-        # Avg route length: customers per vehicle (lower = more balanced / more specialized routes)
         avg_route_len = (
             sum(
                 sum(len(route) for route in r["routes"]) / (len(r["routes"]) or 1)
@@ -852,11 +772,9 @@ def generate_radar_chart(results: dict):
             f"gap={avg_gap:.2f}%  t/node={avg_time_per_node:.2f}s  gens={avg_gens:.0f}"
         )
 
-    # Metric display names — all metrics: lower raw value = better performance
     metric_keys = list(next(iter(set_metrics.values())).keys())
     lower_is_better = [True, True, True, True, True]
 
-    # Normalize: soft range [0.15, 1.0] — worst set never collapses to zero
     LO_FLOOR, HI_CEIL = 0.15, 1.0
     set_scores: dict[str, list[float]] = {s: [] for s in active_sets}
     print(f"\n  [Radar] Normalized scores (soft range [{LO_FLOOR}, {HI_CEIL}]):")
@@ -877,12 +795,9 @@ def generate_radar_chart(results: dict):
         scores_str = "  ".join(f"{s}={set_scores[s][-1]:.2f}" for s in active_sets)
         print(f"    {key:<20s}  {scores_str}")
 
-    # ---- Plot ----
     n_metrics = len(metric_keys)
     angles = np.linspace(0, 2 * np.pi, n_metrics, endpoint=False).tolist()
-    angles += angles[:1]  # close the loop
-
-    # Short labels for the polar chart
+    angles += angles[:1]
     short_labels = [k.replace(" (", "\n(") for k in metric_keys]
 
     fig, ax = plt.subplots(figsize=(5.5, 5.5), subplot_kw={"projection": "polar"})
@@ -920,8 +835,6 @@ def generate_radar_chart(results: dict):
         fontweight="normal",
         pad=18,
     )
-
-    # Grid styling
     ax.grid(True, alpha=0.15, linewidth=0.4)
     ax.legend(
         loc="upper right",
@@ -939,18 +852,13 @@ def generate_radar_chart(results: dict):
 
 
 def generate_generations_chart(results: dict):
-    """Bar chart: avg generations to reach best solution per instance, with std dev error bars."""
     _set_publication_style()
-
     available = _get_available(results)
     if not available:
-        print("Warning: No results available for generations chart.")
+        print("Warning: No results for generations chart.")
         return
 
-    labels = []
-    means = []
-    stds = []
-    colors = []
+    labels, means, stds, colors = [], [], [], []
     for name in available:
         r = results[name]
         gens = r["generations_to_best"]
@@ -963,7 +871,6 @@ def generate_generations_chart(results: dict):
 
     fig, ax = plt.subplots(figsize=(7.5, 3.8))
     x = np.arange(len(labels))
-
     ax.bar(
         x,
         means,
@@ -980,7 +887,6 @@ def generate_generations_chart(results: dict):
         },
     )
 
-    # Value labels above bars
     for i, (m, s) in enumerate(zip(means, stds)):
         ax.annotate(
             f"{m:.0f}±{s:.1f}",
@@ -1010,17 +916,13 @@ def generate_generations_chart(results: dict):
 
 
 def generate_route_length_chart(results: dict):
-    """Bar chart: average customers per vehicle (route length) for each instance."""
     _set_publication_style()
-
     available = _get_available(results)
     if not available:
-        print("Warning: No results available for route length chart.")
+        print("Warning: No results for route length chart.")
         return
 
-    labels = []
-    lengths = []
-    colors = []
+    labels, lengths, colors = [], [], []
     for name in available:
         r = results[name]
         routes = r.get("routes", [])
@@ -1033,10 +935,8 @@ def generate_route_length_chart(results: dict):
 
     fig, ax = plt.subplots(figsize=(7.0, 3.4))
     x = np.arange(len(labels))
-
     ax.bar(x, lengths, color=colors, edgecolor="white", linewidth=0.4, alpha=0.88)
 
-    # Value labels above bars
     for i, v in enumerate(lengths):
         ax.annotate(
             f"{v:.1f}",
@@ -1067,67 +967,210 @@ def generate_route_length_chart(results: dict):
 
 
 # =============================================================================
+#  Cross-config comparison
+# =============================================================================
+
+
+def generate_config_comparison():
+    _set_publication_style()
+    config_results = discover_config_results()
+    if len(config_results) < 2:
+        print(
+            f"Info: Need at least 2 config result sets (found {len(config_results)}). Skipping."
+        )
+        return
+
+    config_names = sorted(config_results.keys())
+    print(f"\n  [Config Comparison] Found {len(config_names)} configs: {config_names}")
+
+    common_instances = None
+    for cfg_name in config_names:
+        res = config_results[cfg_name]
+        insts = {n for n in ALL_INSTANCES if n in res and res[n].get("optimal")}
+        if common_instances is None:
+            common_instances = insts
+        else:
+            common_instances &= insts
+
+    if not common_instances:
+        print("Warning: No common instances with BKS across configs. Skipping.")
+        return
+
+    instances = sorted(common_instances, key=lambda n: ALL_INSTANCES.index(n))
+    n_inst = len(instances)
+    n_cfg = len(config_names)
+
+    gap_data = np.zeros((n_cfg, n_inst))
+    time_data = np.zeros((n_cfg, n_inst))
+    best_data = np.zeros((n_cfg, n_inst))
+
+    for ci, cfg_name in enumerate(config_names):
+        res = config_results[cfg_name]
+        for ii, name in enumerate(instances):
+            r = res[name]
+            opt = r["optimal"]
+            gap_data[ci, ii] = ((r["best"] - opt) / opt) * 100
+            time_data[ci, ii] = r["execution_time"]
+            best_data[ci, ii] = r["best"]
+
+    fig, (ax_gap, ax_best, ax_time) = plt.subplots(1, 3, figsize=(11.5, 3.6))
+    x = np.arange(n_inst)
+    total_width = 0.75
+    bar_width = total_width / n_cfg
+
+    # Panel 1: Gap %
+    for ci, cfg_name in enumerate(config_names):
+        offset = (ci - (n_cfg - 1) / 2) * bar_width
+        color = CONFIG_COLORS.get(cfg_name, "#999999")
+        label = CONFIG_LABELS.get(cfg_name, cfg_name)
+        ax_gap.bar(
+            x + offset,
+            gap_data[ci],
+            bar_width * 0.85,
+            color=color,
+            edgecolor="white",
+            linewidth=0.3,
+            alpha=0.88,
+            label=label,
+            zorder=3,
+        )
+    ax_gap.axhline(y=0, color="#999999", linewidth=0.5, linestyle="-", zorder=2)
+    ax_gap.set_xticks(x)
+    ax_gap.set_xticklabels(instances, rotation=35, ha="right", fontsize=7)
+    ax_gap.set_ylabel("Gap from BKS (%)")
+    ax_gap.set_title("Gap % from optimal", fontsize=9.5, fontweight="normal", pad=8)
+    ax_gap.grid(True, axis="y")
+
+    # Panel 2: Best cost
+    for ci, cfg_name in enumerate(config_names):
+        offset = (ci - (n_cfg - 1) / 2) * bar_width
+        color = CONFIG_COLORS.get(cfg_name, "#999999")
+        ax_best.bar(
+            x + offset,
+            best_data[ci],
+            bar_width * 0.85,
+            color=color,
+            edgecolor="white",
+            linewidth=0.3,
+            alpha=0.88,
+            zorder=3,
+        )
+    ax_best.set_xticks(x)
+    ax_best.set_xticklabels(instances, rotation=35, ha="right", fontsize=7)
+    ax_best.set_ylabel("Best cost")
+    ax_best.set_title("Best solution cost", fontsize=9.5, fontweight="normal", pad=8)
+    ax_best.grid(True, axis="y")
+
+    # Panel 3: Execution time
+    for ci, cfg_name in enumerate(config_names):
+        offset = (ci - (n_cfg - 1) / 2) * bar_width
+        color = CONFIG_COLORS.get(cfg_name, "#999999")
+        ax_time.bar(
+            x + offset,
+            time_data[ci],
+            bar_width * 0.85,
+            color=color,
+            edgecolor="white",
+            linewidth=0.3,
+            alpha=0.88,
+            zorder=3,
+        )
+    ax_time.set_xticks(x)
+    ax_time.set_xticklabels(instances, rotation=35, ha="right", fontsize=7)
+    ax_time.set_ylabel("Execution time (s)")
+    ax_time.set_title("Execution time", fontsize=9.5, fontweight="normal", pad=8)
+    ax_time.grid(True, axis="y")
+
+    handles, labels = ax_gap.get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="upper center",
+        ncol=n_cfg,
+        framealpha=0.85,
+        borderpad=0.3,
+        fontsize=7,
+        bbox_to_anchor=(0.5, 1.02),
+    )
+    fig.suptitle(
+        "Config variant comparison across all instances",
+        fontsize=10.5,
+        fontweight="normal",
+        y=1.12,
+    )
+
+    fig.tight_layout(pad=0.6)
+    base_imgs = Path(__file__).parent.parent / "docs" / "report" / "imgs" / "summary"
+    base_imgs.mkdir(parents=True, exist_ok=True)
+    output_path = base_imgs / "summary_config_comparison.png"
+    fig.savefig(output_path, facecolor="white", edgecolor="none")
+    plt.close(fig)
+    print(f"Generated config comparison chart: {output_path}")
+
+
+# =============================================================================
 #  Main entry point
 # =============================================================================
 
 
-def generate_plots():
-    """Generate all plots for the report."""
-    if not RESULTS_FILE.exists():
-        print(f"Error: {RESULTS_FILE} not found. Please run run_experiments.py first.")
+def generate_plots(results_file: Path, imgs_dir: Path):
+    global CONV_DIR, ROUTES_DIR, SUMMARY_DIR
+    CONV_DIR = imgs_dir / "convergence"
+    ROUTES_DIR = imgs_dir / "routes"
+    SUMMARY_DIR = imgs_dir / "summary"
+
+    if not results_file.exists():
+        print(f"Error: {results_file} not found.")
         return
 
-    with open(RESULTS_FILE) as f:
+    with open(results_file) as f:
         results = json.load(f)
 
-    # Ensure output directories exist
     for d in (CONV_DIR, ROUTES_DIR, SUMMARY_DIR):
         d.mkdir(parents=True, exist_ok=True)
 
-    # Individual-instance plots
     print("=" * 60)
-    print("1/9  Convergence plots (3 representative instances)")
+    print("1/9 Convergence plots (representative instances)")
     print("=" * 60)
     generate_convergence_plots(results)
 
     print("\n" + "=" * 60)
-    print("2/9  Best-route visualization plots (3 representative instances)")
+    print("2/9 Best-route visualization plots (representative instances)")
     print("=" * 60)
     generate_route_plots(results)
 
-    # Summary charts (all available instances)
     print("\n" + "=" * 60)
-    print("3/9  Summary: best vs BKS (all instances)")
+    print("3/9 Summary: best vs BKS (all instances)")
     print("=" * 60)
     generate_summary_chart(results)
 
     print("\n" + "=" * 60)
-    print("4/9  Gap from optimal (all instances)")
+    print("4/9 Gap from optimal (all instances)")
     print("=" * 60)
     generate_gap_chart(results)
 
     print("\n" + "=" * 60)
-    print("5/9  Box plot: per-run cost distribution")
+    print("5/9 Box plot: per-run cost distribution")
     print("=" * 60)
     generate_boxplot(results)
 
     print("\n" + "=" * 60)
-    print("6/9  Runtime vs instance size")
+    print("6/9 Runtime vs instance size")
     print("=" * 60)
     generate_runtime_chart(results)
 
     print("\n" + "=" * 60)
-    print("7/9  Radar chart: normalized performance by set")
+    print("7/9 Radar chart: normalized performance by set")
     print("=" * 60)
     generate_radar_chart(results)
 
     print("\n" + "=" * 60)
-    print("8/9  Generations to best (all instances)")
+    print("8/9 Generations to best (all instances)")
     print("=" * 60)
     generate_generations_chart(results)
 
     print("\n" + "=" * 60)
-    print("9/9  Route length (all instances)")
+    print("9/9 Route length (all instances)")
     print("=" * 60)
     generate_route_length_chart(results)
 
@@ -1137,4 +1180,8 @@ def generate_plots():
 
 
 if __name__ == "__main__":
-    generate_plots()
+    args = parse_args()
+    if args.comparison_only:
+        generate_config_comparison()
+    else:
+        generate_plots(Path(args.results), Path(args.imgs))

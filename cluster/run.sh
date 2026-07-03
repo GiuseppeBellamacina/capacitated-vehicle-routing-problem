@@ -2,16 +2,16 @@
 # ============================================================================
 # SLURM batch script — CVRP Solver (HGA)
 #
-# Esegue in sequenza:
+# Esegue in sequenza per OGNI variante di configurazione:
 #   1. Esperimenti (run_experiments.py) su tutte le 10 istanze
-#   2. Grafici (plot_convergence.py) — 9 tipi di grafico
-#   3. Tabella LaTeX (format_latex_table.py) — output salvato in results/table.txt
+#   2. Grafici (plot_convergence.py) — 10 tipi di grafico
+#   3. Tabella LaTeX (format_latex_table.py)
+#
+# Ogni config YAML contiene già i path di output (output_dir, imgs_dir).
+# Nessun env var, nessun backup/restore — pulito e semplice.
 #
 # Uso:
 #   sbatch cluster/run.sh
-#
-# Oppure con config personalizzato:
-#   CONFIG=../config/config.yaml sbatch cluster/run.sh
 # ============================================================================
 
 # ┌────────────────────────────────────────────────────────┐
@@ -28,16 +28,12 @@
 #SBATCH --mail-user=bellamacina50@gmail.com
 #SBATCH --output=logs/slurm-train-%j.log
 
-# ── Variabili ─────────────────────────────────────────────────────────────────
-# CONFIG: path relativo al progetto per un file di configurazione alternativo.
-# Se impostato, sovrascrive temporaneamente config/config.yaml prima degli esperimenti.
-CONFIG="${CONFIG:-}"
+set -e -o pipefail
+
 PROJ_DIR="$HOME/capacitated-vehicle-routing-problem"
 
-set -e
-
 echo "============================================"
-echo "  CVRP Solver (HGA) — Cluster DMI"
+echo "  CVRP Solver (HGA) — Multi-Config Pipeline"
 echo "  Job ID:    ${SLURM_JOB_ID}"
 echo "  Node:      $(hostname)"
 echo "  Date:      $(date)"
@@ -46,98 +42,149 @@ echo ""
 
 cd "$PROJ_DIR/backend"
 
-# ── 0. Configurazione ────────────────────────────────────────────────────────
-# Se CONFIG è stato passato (es. CONFIG=../config/custom.yaml sbatch ...),
-# sovrascrivi config/config.yaml per questa esecuzione.
-# La trap EXIT ripristina automaticamente il config originale in ogni caso.
-CONFIG_ORIG_BACKUP=""
-trap 'if [ -n "$CONFIG_ORIG_BACKUP" ] && [ -f "$CONFIG_ORIG_BACKUP" ]; then mv "$CONFIG_ORIG_BACKUP" "$PROJ_DIR/config/config.yaml"; fi' EXIT
+# ── Configs da eseguire in sequenza (auto-discovery) ──────────────────────────
+# Scansiona config/config_*.yaml in ordine alfabetico — nuove config
+# vengono automaticamente incluse senza modificare questo script.
+readarray -t CONFIGS < <(ls -1 "$PROJ_DIR"/config/config_*.yaml 2>/dev/null | sort)
 
-if [ -n "$CONFIG" ] && [ -f "$PROJ_DIR/$CONFIG" ]; then
-    DEFAULT_CONFIG="$PROJ_DIR/config/config.yaml"
-    if [ -f "$DEFAULT_CONFIG" ]; then
-        cp "$DEFAULT_CONFIG" "${DEFAULT_CONFIG}.bak"
-        CONFIG_ORIG_BACKUP="${DEFAULT_CONFIG}.bak"
-    fi
-    cp "$PROJ_DIR/$CONFIG" "$DEFAULT_CONFIG"
-    echo "📋 Configurazione: $CONFIG → config/config.yaml"
-elif [ -n "$CONFIG" ]; then
-    echo "⚠️  Config '$CONFIG' non trovato — uso config/config.yaml di default"
-else
-    echo "📋 Configurazione: config/config.yaml (default)"
+if [ ${#CONFIGS[@]} -eq 0 ]; then
+    echo "Errore: nessun file config/config_*.yaml trovato."
+    exit 1
 fi
 
-# ── 1. Esperimenti ───────────────────────────────────────────────────────────
-echo ""
-echo "════════════════════════════════════════════"
-echo "  [1/3] ESPERIMENTI — run_experiments.py"
-echo "════════════════════════════════════════════"
-echo ""
+TOTAL=${#CONFIGS[@]}
+NUM=0
 
-START_EXP=$(date +%s)
+for CFG_FILE in "${CONFIGS[@]}"; do
+    NUM=$((NUM + 1))
+    CFG_PATH="${CFG_FILE#$PROJ_DIR/}"
+    CFG=$(basename "$CFG_FILE" .yaml)
 
-apptainer run /shared/sifs/latest.sif python3 run_experiments.py
-EXP_EXIT=$?
+    # Legge output_dir e imgs_dir direttamente dal file YAML (senza Python)
+    OUTPUT_DIR=$(grep '^output_dir:' "$CFG_FILE" | awk '{print $2}')
+    IMGS_DIR=$(grep '^imgs_dir:' "$CFG_FILE" | awk '{print $2}')
 
-END_EXP=$(date +%s)
-EXP_ELAPSED=$((END_EXP - START_EXP))
-echo ""
-echo "✅ Esperimenti completati in ${EXP_ELAPSED}s (exit code: $EXP_EXIT)"
+    RESULTS_FILE="$PROJ_DIR/${OUTPUT_DIR}/results.json"
+    TABLE_FILE="$PROJ_DIR/${OUTPUT_DIR}/table.txt"
+    IMGS_BASE="$PROJ_DIR/${IMGS_DIR}"
 
-if [ $EXP_EXIT -ne 0 ]; then
-    echo "❌ Esperimenti falliti (exit code: $EXP_EXIT) — interrompo."
-    exit $EXP_EXIT
-fi
-
-# ── 2. Grafici ───────────────────────────────────────────────────────────────
-echo ""
-echo "════════════════════════════════════════════"
-echo "  [2/3] GRAFICI — plot_convergence.py"
-echo "════════════════════════════════════════════"
-echo ""
-
-apptainer run /shared/sifs/latest.sif python3 plot_convergence.py
-PLOT_EXIT=$?
-
-if [ $PLOT_EXIT -ne 0 ]; then
-    echo "⚠️  Generazione grafici fallita (exit code: $PLOT_EXIT) — continuo con la tabella."
-else
+    echo "╔═════════════════════════════════════╗"
+    echo "║  [${NUM}/${TOTAL}] Config: ${CFG}"  ║
+    echo "╚═════════════════════════════════════╝"
+    echo "  Config:   ${CFG_PATH}"
+    echo "  Results:  ${OUTPUT_DIR}/"
+    echo "  Images:   ${IMGS_DIR}/"
     echo ""
-    echo "✅ Grafici generati in docs/report/imgs/{convergence,routes,summary}/"
+
+    # Crea directory di output
+    mkdir -p "$PROJ_DIR/${OUTPUT_DIR}"
+    mkdir -p "${IMGS_BASE}/convergence"
+    mkdir -p "${IMGS_BASE}/routes"
+    mkdir -p "${IMGS_BASE}/summary"
+
+    APPT="apptainer run /shared/sifs/latest.sif python3"
+
+    # ── 1. Esperimenti ───────────────────────────────────────────────────
+    echo "  ════════════════════════════════════════"
+    echo "  [${NUM}a] ESPERIMENTI — run_experiments.py"
+    echo "  ════════════════════════════════════════"
+    echo ""
+
+    START_EXP=$(date +%s)
+
+    $APPT run_experiments.py --config "../$CFG_PATH"
+    EXP_EXIT=$?
+
+    END_EXP=$(date +%s)
+    echo ""
+    echo "  ✅ Esperimenti ${CFG} completati in $((END_EXP - START_EXP))s"
+
+    if [ $EXP_EXIT -ne 0 ]; then
+        echo "  ❌ Esperimenti ${CFG} falliti — interrompo."
+        exit $EXP_EXIT
+    fi
+
+    # ── 2. Grafici ───────────────────────────────────────────────────────
+    echo ""
+    echo "  ════════════════════════════════════════"
+    echo "  [${NUM}b] GRAFICI — plot_convergence.py"
+    echo "  ════════════════════════════════════════"
+    echo ""
+
+    $APPT plot_convergence.py --results "../${OUTPUT_DIR}/results.json" --imgs "../${IMGS_DIR}"
+    PLOT_EXIT=$?
+
+    if [ $PLOT_EXIT -ne 0 ]; then
+        echo "  ⚠️  Grafici ${CFG} falliti — continuo."
+    else
+        echo "  ✅ Grafici ${CFG} → ${IMGS_DIR}/"
+    fi
+
+    # ── 3. Tabella LaTeX ─────────────────────────────────────────────────
+    echo ""
+    echo "  ════════════════════════════════════════"
+    echo "  [${NUM}c] TABELLA — format_latex_table.py"
+    echo "  ════════════════════════════════════════"
+    echo ""
+
+    $APPT format_latex_table.py --results "../${OUTPUT_DIR}/results.json" | tee "$TABLE_FILE"
+    TABLE_EXIT=${PIPESTATUS[0]}
+
+    echo ""
+    echo "  📄 Tabella ${CFG}: ${OUTPUT_DIR}/table.txt"
+    echo ""
+done
+
+# ── Config comparison chart (generato una sola volta con tutti i dati) ────────
+echo ""
+echo "╔══════════════════════════════════════════════════════╗"
+echo "║  CONFIG COMPARISON — summary_config_comparison.png"  ║
+echo "╚══════════════════════════════════════════════════════╝"
+echo ""
+
+$APPT plot_convergence.py --comparison-only
+CMP_EXIT=$?
+
+if [ $CMP_EXIT -ne 0 ]; then
+    echo "  ⚠️  Config comparison fallito (potrebbero servire più config completate)."
+else
+    echo "  ✅ Config comparison → docs/report/imgs/summary/summary_config_comparison.png"
 fi
 
-# ── 3. Tabella LaTeX ─────────────────────────────────────────────────────────
+# ── Tabella LaTeX comparativa (una sola con tutte le config affiancate) ────────
 echo ""
-echo "════════════════════════════════════════════"
-echo "  [3/3] TABELLA — format_latex_table.py"
-echo "════════════════════════════════════════════"
+echo "╔════════════════════════════════════════════╗"
+echo "║  TABLE COMPARISON — table_comparison.txt"  ║
+echo "╚════════════════════════════════════════════╝"
 echo ""
 
-TABLE_OUT="$PROJ_DIR/results/table.txt"
-apptainer run /shared/sifs/latest.sif python3 format_latex_table.py | tee "$TABLE_OUT"
-TABLE_EXIT=${PIPESTATUS[0]}
-
+TABLE_COMP="$PROJ_DIR/results/table_comparison.txt"
+$APPT format_latex_comparison.py --output ../results/table_comparison.txt 2>&1
 echo ""
-echo "📄 Tabella LaTeX salvata in: results/table.txt"
+if [ -f "$TABLE_COMP" ]; then
+    echo "  ✅ Tabella comparativa → results/table_comparison.txt"
+else
+    echo "  ⚠️  Tabella comparativa fallita."
+fi
 
 # ── Riepilogo ─────────────────────────────────────────────────────────────────
 echo ""
 echo "============================================"
-echo "  ✅ PIPELINE COMPLETATA"
+echo "  ✅ PIPELINE COMPLETATA — ${TOTAL} config"
 echo "  $(date)"
 echo "============================================"
 echo ""
 echo "Output generati:"
-echo "  results/results.json              — risultati esperimenti"
-echo "  results/table.txt                 — tabella LaTeX"
-echo "  docs/report/imgs/convergence/     — grafici convergenza"
-echo "  docs/report/imgs/routes/          — grafici rotte"
-echo "  docs/report/imgs/summary/         — grafici riepilogativi"
+echo "  docs/report/imgs/summary/summary_config_comparison.png"
+echo "  results/table_comparison.txt"
+for CFG_FILE in "${CONFIGS[@]}"; do
+    CFG=$(basename "$CFG_FILE" .yaml)
+    OUTPUT_DIR=$(grep '^output_dir:' "$CFG_FILE" | awk '{print $2}')
+    IMGS_DIR=$(grep '^imgs_dir:' "$CFG_FILE" | awk '{print $2}')
+    echo "  ${OUTPUT_DIR}/results.json"
+    echo "  ${OUTPUT_DIR}/table.txt"
+    echo "  ${IMGS_DIR}/{convergence,routes,summary}/"
+done
 echo ""
-
-if [ $PLOT_EXIT -ne 0 ] || [ $TABLE_EXIT -ne 0 ]; then
-    echo "⚠️  Completato con warnings: plot=$PLOT_EXIT table=$TABLE_EXIT"
-    exit 1
-fi
 
 exit 0

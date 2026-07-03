@@ -1,10 +1,69 @@
 """VRP instance parser for CVRPLIB format."""
 
 import math
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+
+# ── Instance discovery ───────────────────────────────────────────────────────
+
+_INSTANCES_DIR = Path(__file__).parent.parent.parent / "instances"
+
+
+def discover_instances(instances_dir: str | Path | None = None) -> list[str]:
+    """Auto-discover all .vrp files, returning sorted instance names.
+
+    Scans the instances/ directory for ``*.vrp`` files and returns their
+    stem (name without extension) sorted alphabetically.  New instances
+    are automatically picked up — no hardcoded lists needed.
+    """
+    if instances_dir is None:
+        instances_dir = _INSTANCES_DIR
+    return sorted(p.stem for p in Path(instances_dir).glob("*.vrp"))
+
+
+def get_representative_instances(
+    instances_dir: str | Path | None = None,
+) -> list[str]:
+    """Return one representative instance per set, varying depth per set.
+
+    Groups instances by first letter (alphabetically, no hardcoded letters),
+    sorts each group numerically by node count, then picks a *different
+    index* within each group:
+
+    * Group 0 → index 0 (smallest instance)
+    * Group 1 → index 1 (second smallest)
+    * Group 2 → index 2 (third smallest)
+    * … and so on.
+
+    If a group has fewer instances than the requested index, the *largest*
+    instance in that group is used instead.
+    """
+    all_instances = discover_instances(instances_dir)
+
+    # Group by first letter
+    groups: dict[str, list[str]] = {}
+    for name in all_instances:
+        groups.setdefault(name[0], []).append(name)
+
+    # Sort each group by node count (numeric, not alphabetical)
+    for key in groups:
+        groups[key].sort(
+            key=lambda n: int(m.group(1)) if (m := re.search(r"-n(\d+)-", n)) else 0
+        )
+
+    sorted_keys = sorted(groups.keys())
+    representatives: list[str] = []
+    for gi, key in enumerate(sorted_keys):
+        group = groups[key]
+        idx = gi if gi < len(group) else len(group) - 1
+        representatives.append(group[idx])
+    return representatives
+
+
+# ── Instance parser ──────────────────────────────────────────────────────────
 
 
 @dataclass
@@ -35,8 +94,6 @@ class CVRPInstance:
 
 def _parse_optimal_from_comment(comment: str) -> int | None:
     """Extract optimal value from comment string if present."""
-    import re
-
     # Matches "Optimal value: 123" or "Best value: 123" (case-insensitive)
     match = re.search(r"(?:Optimal|Best)\s+value:\s*(\d+)", comment, re.IGNORECASE)
     if match:
@@ -101,8 +158,6 @@ def read_instance(filepath: str | Path) -> CVRPInstance:
                 depot = int(line.strip()) - 1  # 0-indexed
 
     # Extract number of vehicles from instance name (e.g., A-n45-k7 -> 7)
-    import re
-
     match = re.search(r"k(\d+)", name)
     num_vehicles = int(match.group(1)) if match else 1
 

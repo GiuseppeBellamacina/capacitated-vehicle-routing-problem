@@ -9,7 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from cvrp.hga import HybridGeneticAlgorithm
-from cvrp.instance import read_instance
+from cvrp.instance import discover_instances, read_instance
 
 app = FastAPI(title="CVRP Solver", version="0.1.0")
 
@@ -242,7 +242,10 @@ async def websocket_endpoint(websocket: WebSocket):
             action = data.get("action")
 
             if action == "run":
-                instance_name = data.get("instance", "A-n45-k7")
+                discovered = discover_instances()
+                instance_name = data.get(
+                    "instance", discovered[0] if discovered else "A-n45-k7"
+                )
                 max_evals = data.get("max_evals", 350_000)
                 runs = data.get("runs", 5)
                 hga_config = {

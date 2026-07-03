@@ -1,34 +1,40 @@
-"""Script to format experimental results from results.json as LaTeX table rows."""
+"""Format experimental results as LaTeX table rows.
 
+Usage:
+    python format_latex_table.py --results ../results/config_small/results.json
+"""
+
+import argparse
 import json
 from pathlib import Path
 
-RESULTS_FILE = Path(__file__).parent.parent / "results" / "results.json"
+from cvrp.instance import discover_instances
 
 
-def format_table():
-    if not RESULTS_FILE.exists():
-        print(f"Error: {RESULTS_FILE} not found. Please run run_experiments.py first.")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="LaTeX table formatter for CVRP results"
+    )
+    parser.add_argument(
+        "--results",
+        default="../results/results.json",
+        help="Path to results.json (default: ../results/results.json)",
+    )
+    return parser.parse_args()
+
+
+def format_table(results_file: Path):
+    if not results_file.exists():
+        print(f"Error: {results_file} not found.")
         return
 
-    with open(RESULTS_FILE) as f:
+    with open(results_file) as f:
         results = json.load(f)
 
-    instances_order = [
-        "A-n45-k7",
-        "A-n60-k9",
-        "A-n80-k10",
-        "B-n56-k7",
-        "B-n66-k9",
-        "B-n78-k10",
-        "E-n76-k8",
-        "E-n101-k14",
-        "P-n50-k10",
-        "P-n101-k4",
-    ]
+    instances_order = discover_instances()
 
     print("\n" + "=" * 80)
-    print("LATEX TABLE ROWS (Copy and paste into Table 3 in report.tex):")
+    print("LATEX TABLE ROWS (Copy and paste into report.tex):")
     print("=" * 80)
 
     for name in instances_order:
@@ -42,25 +48,24 @@ def format_table():
         std_dev = r["std_dev"]
         optimal = r["optimal"]
 
-        # Calculate gap
         if optimal:
             gap = ((best - optimal) / optimal) * 100
             gap_str = f"{gap:.2f}\\%"
         else:
             gap_str = "-"
 
-        # Get number of vehicles used in the best solution
-        # (the length of routes list in results)
         vehicles_used = len(r.get("routes", []))
-
-        # In case the optimal is none, format it nicely
         opt_str = f"{optimal:,}" if optimal is not None else "-"
 
-        row = f"{name:<12} & {best:>8.2f} & {mean:>8.2f} & {std_dev:>8.2f} & {opt_str:>7} & {gap_str:>7} & {vehicles_used:>7} \\\\"
+        row = (
+            f"{name:<12} & {best:>8.2f} & {mean:>8.2f} & {std_dev:>8.2f} "
+            f"& {opt_str:>7} & {gap_str:>7} & {vehicles_used:>7} \\\\"
+        )
         print(row)
 
     print("=" * 80)
 
 
 if __name__ == "__main__":
-    format_table()
+    args = parse_args()
+    format_table(Path(args.results))

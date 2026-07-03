@@ -1,0 +1,19 @@
+# ==============================================================================
+# CONFIGURAZIONE HGA — Variante "Small" (popolazione ridotta, alta velocità)
+# ==============================================================================
+# Strategia: popolazione piccola (+23.000 generazioni), massima pressione selettiva.
+# Ottimizzata per il budget di 350.000 FE — ha prodotto gap 0.08% su A-n45-k7.
+
+population_size: 10
+max_evaluations: 350000
+runs: 5
+crossover_rate: 0.8
+mutation_rate: 0.1
+local_search_rate: 0.1
+tournament_size: 2
+elite_count: 2
+local_search_max_iter: 2
+granular_size: 3
+
+output_dir: results/config_small
+imgs_dir: docs/report/imgs/config_small
