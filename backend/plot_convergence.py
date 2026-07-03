@@ -31,6 +31,7 @@ INSTANCES_DIR = Path(__file__).parent.parent / "instances"
 CONV_DIR = None
 ROUTES_DIR = None
 SUMMARY_DIR = None
+CONFIG_LABEL = ""  # derived from imgs_dir (e.g. "config_ultra")
 
 # Discovered at module load — auto-picks up new .vrp files
 ALL_INSTANCES = discover_instances()
@@ -216,7 +217,7 @@ def generate_convergence_plots(results: dict):
             gap_str = f" (gap {gap:+.2f}%)"
         ax.set_title(
             f"{name}  --  Convergence  |  Best: {best_cost:.0f}{gap_str}  |  "
-            f"Runs: {conv_matrix.shape[0]}",
+            f"Runs: {conv_matrix.shape[0]}  |  {CONFIG_LABEL}",
             fontsize=9.5,
             fontweight="normal",
             loc="center",
@@ -421,7 +422,7 @@ def generate_route_plots(results: dict):
         if optimal:
             gap = ((best_cost - optimal) / optimal) * 100
             gap_str = f" (gap {gap:+.2f}%)"
-        title_line1 = f"{name}  --  Best solution"
+        title_line1 = f"{name}  --  Best solution  |  {CONFIG_LABEL}"
         title_line2 = (
             f"Cost: {best_cost:.0f}{gap_str}    "
             f"Vehicles: {num_vehicles_used}/{instance.num_vehicles}    "
@@ -517,7 +518,7 @@ def generate_summary_chart(results: dict):
     ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=7)
     ax.set_ylabel("Cost")
     ax.set_title(
-        "Best solution cost vs best-known solution (BKS)",
+        f"Best solution cost vs best-known solution (BKS) — {CONFIG_LABEL}",
         fontsize=9.5,
         fontweight="normal",
         pad=10,
@@ -571,7 +572,7 @@ def generate_gap_chart(results: dict):
     ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=7)
     ax.set_ylabel("Gap from BKS (%)")
     ax.set_title(
-        "Relative gap from best-known solution",
+        f"Relative gap from best-known solution — {CONFIG_LABEL}",
         fontsize=9.5,
         fontweight="normal",
         pad=10,
@@ -634,7 +635,7 @@ def generate_boxplot(results: dict):
     ax.axhline(y=100, color="#CC3311", linestyle=":", linewidth=0.8, alpha=0.6)
     ax.set_ylabel("Cost (% of BKS)")
     ax.set_title(
-        "Per-run cost distribution across 5 independent runs (normalized by BKS)",
+        f"Per-run cost distribution across 5 independent runs (normalized by BKS) — {CONFIG_LABEL}",
         fontsize=9.5,
         fontweight="normal",
         pad=10,
@@ -685,7 +686,7 @@ def generate_runtime_chart(results: dict):
     ax.set_xlabel("Instance dimension (nodes)")
     ax.set_ylabel("Execution time (s)")
     ax.set_title(
-        "Computational cost vs instance size", fontsize=9.5, fontweight="normal", pad=10
+        f"Computational cost vs instance size — {CONFIG_LABEL}", fontsize=9.5, fontweight="normal", pad=10
     )
     ax.grid(True)
 
@@ -830,7 +831,7 @@ def generate_radar_chart(results: dict):
         color="#888888",
     )
     ax.set_title(
-        "Normalized performance by instance set\n(higher = better)",
+        f"Normalized performance by instance set — {CONFIG_LABEL}\n(higher = better)",
         fontsize=9.5,
         fontweight="normal",
         pad=18,
@@ -901,7 +902,7 @@ def generate_generations_chart(results: dict):
     ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=7)
     ax.set_ylabel("Generations")
     ax.set_title(
-        "Average generations to reach best solution (mean ± 1 s.d. across 5 runs)",
+        f"Average generations to reach best solution (mean ± 1 s.d. across 5 runs) — {CONFIG_LABEL}",
         fontsize=9.5,
         fontweight="normal",
         pad=10,
@@ -952,7 +953,7 @@ def generate_route_length_chart(results: dict):
     ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=7)
     ax.set_ylabel("Customers per vehicle")
     ax.set_title(
-        "Average route length (customers per vehicle) across all instances",
+        f"Average route length (customers per vehicle) across all instances — {CONFIG_LABEL}",
         fontsize=9.5,
         fontweight="normal",
         pad=10,
@@ -1114,10 +1115,17 @@ def generate_config_comparison():
 
 
 def generate_plots(results_file: Path, imgs_dir: Path):
-    global CONV_DIR, ROUTES_DIR, SUMMARY_DIR
+    global CONV_DIR, ROUTES_DIR, SUMMARY_DIR, CONFIG_LABEL
     CONV_DIR = imgs_dir / "convergence"
     ROUTES_DIR = imgs_dir / "routes"
     SUMMARY_DIR = imgs_dir / "summary"
+
+    # Derive config label from imgs_dir (e.g. docs/report/imgs/config_ultra -> "Ultra (pop=5)")
+    cfg_name = imgs_dir.name
+    CONFIG_LABEL = CONFIG_LABELS.get(
+        cfg_name,
+        cfg_name.replace("config_", "").replace("_", " ").title() if cfg_name.startswith("config_") else "",
+    )
 
     if not results_file.exists():
         print(f"Error: {results_file} not found.")
@@ -1184,4 +1192,20 @@ if __name__ == "__main__":
     if args.comparison_only:
         generate_config_comparison()
     else:
-        generate_plots(Path(args.results), Path(args.imgs))
+        results_file = Path(args.results)
+        imgs_dir = Path(args.imgs)
+
+        # ── Auto-detect if defaults don't exist (multi-config setup) ──────
+        if not results_file.exists():
+            discovered = sorted(Path("../results").glob("config_*/results.json"))
+            if discovered:
+                results_file = discovered[0]
+                # Derive imgs path from results path
+                cfg_name = results_file.parent.name  # e.g. "config_ultra"
+                imgs_dir = Path(f"../docs/report/imgs/{cfg_name}")
+                print(f"Auto-detected: --results {results_file}  --imgs {imgs_dir}")
+            else:
+                print(f"Error: {results_file} not found and no config_*/results.json discovered.")
+                sys.exit(1)
+
+        generate_plots(results_file, imgs_dir)

@@ -36,7 +36,7 @@ function Upload {
         "backend/run_experiments.py",
         "backend/plot_convergence.py",
         "backend/format_latex_table.py",
-        "backend/__init__.py",
+        "backend/format_latex_comparison.py",
         "config",
         "instances",
         "cluster"
@@ -112,10 +112,10 @@ function DownloadAll {
 }
 
 function DownloadResults {
-    Write-Host "  [1/2] results/results.json..." -ForegroundColor Gray
+    Write-Host "  [1/2] results/ (all JSON + comparison table)..." -ForegroundColor Gray
     New-Item -ItemType Directory -Force -Path (Join-Path $LOCAL "results") | Out-Null
-    scp -q "${REMOTE}/results/results.json" (Join-Path $LOCAL "results/results.json")
-    Write-Host "  -> saved to results/results.json" -ForegroundColor Gray
+    ssh $SSH_TARGET "cd ~/capacitated-vehicle-routing-problem && tar cf - results/" | tar xvf - -C "$LOCAL"
+    Write-Host "  -> saved to results/ (including config_*/results.json)" -ForegroundColor Gray
 }
 
 function DownloadImgs {

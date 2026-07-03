@@ -80,8 +80,6 @@ echo ""
 # ── 5. Crea directory necessarie ─────────────────────────────────────────────
 mkdir -p "$PROJ_DIR/logs"
 mkdir -p "$PROJ_DIR/results"
-mkdir -p "$PROJ_DIR/docs/report/imgs/convergence"
-mkdir -p "$PROJ_DIR/docs/report/imgs/routes"
 mkdir -p "$PROJ_DIR/docs/report/imgs/summary"
 
 echo "📁 Directory create:"
