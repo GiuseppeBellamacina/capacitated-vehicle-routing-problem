@@ -2,6 +2,7 @@
 
 import json
 import math
+from collections.abc import Sequence
 from pathlib import Path
 
 # ── Shared constants ─────────────────────────────────────────────────────────
@@ -62,14 +63,14 @@ def solution_cost(
     return sum(route_cost(r, dist_matrix, depot) for r in routes)
 
 
-def route_demand(route: list[int], demands: list[int]) -> int:
+def route_demand(route: list[int], demands: Sequence[int]) -> int:
     """Compute total demand of a route."""
     return sum(demands[i] for i in route)
 
 
 def is_feasible(
     routes: list[list[int]],
-    demands: list[int],
+    demands: Sequence[int],
     capacity: int,
     num_vehicles: int,
     num_customers: int,

@@ -10,6 +10,7 @@
 #   bash cluster/setup.sh
 #
 # Non richiede GPU — il progetto è CPU-bound (algoritmo genetico).
+# Le dipendenze sono lette da backend/pyproject.toml.
 # ============================================================================
 
 # ── 0. Auto-rilancio dentro srun + Apptainer se siamo sul login node ─────────
@@ -49,15 +50,15 @@ echo ""
 $PY --version 2>&1
 echo ""
 
-# ── 3. Installa dipendenze ───────────────────────────────────────────────────
-echo "📦 Installazione dipendenze Python (pip install --user)..."
+# ── 3. Installa dipendenze da pyproject.toml ────────────────────────────────
+echo "📦 Installazione dipendenze Python da pyproject.toml..."
 cd "$PROJ_DIR/backend"
 
-# Core dependencies
-pip install --user numpy matplotlib numba tqdm pyyaml
+# Core dependencies (legge da [project.dependencies] in pyproject.toml)
+pip install --user .
 
-# Dev dependencies (formatting)
-pip install --user ruff isort black
+# Dev dependencies (legge da [project.optional-dependencies].dev)
+pip install --user ".[dev]"
 
 echo ""
 echo "✅ Dipendenze installate."
@@ -71,6 +72,7 @@ import matplotlib;  print(f'  matplotlib: {matplotlib.__version__}')
 import numba;       print(f'  numba:      {numba.__version__}')
 import tqdm;        print(f'  tqdm:       {tqdm.__version__}')
 import yaml;        print(f'  pyyaml:     {yaml.__version__}')
+import optuna;      print(f'  optuna:     {optuna.__version__}')
 " 2>/dev/null || {
     echo "⚠️  Alcuni moduli non sono stati trovati. Verifica l'installazione."
 }

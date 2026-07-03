@@ -25,6 +25,8 @@
   --purple: #a78bfa;
   --purple-soft: rgba(167, 139, 250, 0.12);
   --cyan: #22d3ee;
+  --gold: #f59e0b;
+  --gold-soft: rgba(245, 158, 11, 0.12);
   --border: #1e2335;
   --border-focus: #2d3560;
   --radius: 8px;
@@ -133,6 +135,14 @@ body {
 .btn-preset.warning { border-color: var(--warning); color: var(--warning); }
 .btn-preset.warning:hover { background: var(--warning-soft); }
 .btn-preset.warning.active { background: var(--warning-soft); border-color: var(--warning); color: var(--warning); }
+
+.btn-preset.balanced { border-color: var(--cyan); color: var(--cyan); }
+.btn-preset.balanced:hover { background: rgba(34, 211, 238, 0.12); }
+.btn-preset.balanced.active { background: rgba(34, 211, 238, 0.12); border-color: var(--cyan); color: var(--cyan); }
+
+.btn-preset.tuned { border-color: var(--gold); color: var(--gold); }
+.btn-preset.tuned:hover { background: var(--gold-soft); }
+.btn-preset.tuned.active { background: var(--gold-soft); border-color: var(--gold); color: var(--gold); }
 
 /* ── Form Controls ─────────────────────────── */
 

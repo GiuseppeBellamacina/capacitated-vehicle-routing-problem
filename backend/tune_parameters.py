@@ -357,7 +357,7 @@ def main():
     # ── Show top-5 trials ─────────────────────────────────────────────────
     print("Top 5 trials:")
     completed = [t for t in study.trials if t.value is not None]
-    completed.sort(key=lambda t: t.value)
+    completed.sort(key=lambda t: t.value)  # type: ignore[reportArgumentType,reportCallIssue]
     for i, t in enumerate(completed[:5]):
         print(
             f"  #{i+1}: gap={t.value:.6f} | pop={t.params['population_size']} "

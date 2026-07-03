@@ -12,10 +12,10 @@ study_name: hga_tuning
 trials: 100
 
 # Budget di valutazioni per ogni trial (molto inferiore ai 350k della produzione)
-budget: 50000
+budget: 100000
 
 # Run indipendenti per istanza in ogni trial (1 = più veloce, ma più rumoroso)
-runs_per_trial: 1
+runs_per_trial: 2
 
 # Istanze su cui fare tuning (lista vuota = usa le rappresentative, una per set)
 instances: []

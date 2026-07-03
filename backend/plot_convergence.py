@@ -232,7 +232,7 @@ def generate_convergence_plots(results: dict):
 
         gap_str = ""
         if optimal:
-            gap = ((best_cost - optimal) / optimal) * 100
+            gap = ((best_cost - optimal) / optimal) * 100  # type: ignore[reportOptionalOperand]
             gap_str = f" (gap {gap:+.2f}%)"
         ax.set_title(
             f"{name}  --  Convergence  |  Best: {best_cost:.0f}{gap_str}  |  "
@@ -439,7 +439,7 @@ def generate_route_plots(results: dict):
 
         gap_str = ""
         if optimal:
-            gap = ((best_cost - optimal) / optimal) * 100
+            gap = ((best_cost - optimal) / optimal) * 100  # type: ignore[reportOptionalOperand]
             gap_str = f" (gap {gap:+.2f}%)"
         title_line1 = f"{name}  --  Best solution  |  {CONFIG_LABEL}"
         title_line2 = (
@@ -522,7 +522,7 @@ def generate_summary_chart(results: dict):
     for i, name in enumerate(labels):
         r = results[name]
         if r["optimal"]:
-            gap_pct = ((r["best"] - r["optimal"]) / r["optimal"]) * 100
+            gap_pct = ((r["best"] - r["optimal"]) / r["optimal"]) * 100  # type: ignore[reportOptionalOperand]
             ax.annotate(
                 f"{gap_pct:+.1f}%",
                 (x[i], r["best"]),
@@ -564,7 +564,7 @@ def generate_gap_chart(results: dict):
         r = results[name]
         if r["optimal"]:
             labels.append(name)
-            gaps.append(((r["best"] - r["optimal"]) / r["optimal"]) * 100)
+            gaps.append(((r["best"] - r["optimal"]) / r["optimal"]) * 100)  # type: ignore[reportOptionalOperand]
             colors.append(SET_COLORS[name[0]])
 
     if not labels:
@@ -618,7 +618,7 @@ def generate_boxplot(results: dict):
         if not r["optimal"]:
             continue
         opt = r["optimal"]
-        normalized = [(c / opt) * 100 for c in r["per_run_costs"]]
+        normalized = [(c / opt) * 100 for c in r["per_run_costs"]]  # type: ignore[reportOptionalOperand]
         data.append(normalized)
         labels.append(name)
         colors.append(SET_COLORS[name[0]])
@@ -764,13 +764,13 @@ def generate_radar_chart(results: dict):
     for s in active_sets:
         instances = sets_data[s]
         n = len(instances)
-        avg_cv = sum(r["std_dev"] / r["mean"] for r in instances) / n
+        avg_cv = sum(r["std_dev"] / r["mean"] for r in instances) / n  # type: ignore[reportOptionalOperand]
         avg_gap = (
-            sum(((r["best"] - r["optimal"]) / r["optimal"]) * 100 for r in instances)
+            sum(((r["best"] - r["optimal"]) / r["optimal"]) * 100 for r in instances)  # type: ignore[reportOptionalOperand]
             / n
         )
         avg_time_per_node = (
-            sum(r["execution_time"] / r["dimension"] for r in instances) / n
+            sum(r["execution_time"] / r["dimension"] for r in instances) / n  # type: ignore[reportOptionalOperand]
         )
         total_gens = sum(sum(r["generations_to_best"]) for r in instances)
         total_runs = sum(len(r["generations_to_best"]) for r in instances)
@@ -824,8 +824,8 @@ def generate_radar_chart(results: dict):
     short_labels = [k.replace(" (", "\n(") for k in metric_keys]
 
     fig, ax = plt.subplots(figsize=(5.5, 5.5), subplot_kw={"projection": "polar"})
-    ax.set_theta_offset(np.pi / 2)
-    ax.set_theta_direction(-1)
+    ax.set_theta_offset(np.pi / 2)  # type: ignore[reportAttributeAccessIssue]
+    ax.set_theta_direction(-1)  # type: ignore[reportAttributeAccessIssue]
 
     for s in active_sets:
         values = set_scores[s] + set_scores[s][:1]
@@ -1032,7 +1032,7 @@ def generate_config_comparison():
         for ii, name in enumerate(instances):
             r = res[name]
             opt = r["optimal"]
-            gap_data[ci, ii] = ((r["best"] - opt) / opt) * 100
+            gap_data[ci, ii] = ((r["best"] - opt) / opt) * 100  # type: ignore[reportOptionalOperand]
             time_data[ci, ii] = r["execution_time"]
             best_data[ci, ii] = r["best"]
 

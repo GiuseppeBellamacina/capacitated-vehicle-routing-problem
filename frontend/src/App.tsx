@@ -74,7 +74,7 @@ type WsMessage =
 
 interface Preset {
   label: string;
-  variant: "best" | "accent" | "" | "warning" | "danger";
+  variant: "best" | "accent" | "" | "warning" | "danger" | "balanced" | "tuned";
   population_size: number;
   tournament_size: number;
   elite_count: number;
@@ -110,6 +110,16 @@ const PRESETS: Record<string, Preset> = {
     label: "Explore", variant: "danger",
     population_size: 100, tournament_size: 2, elite_count: 1, granular_size: 15,
     mutation_rate: 0.4, crossover_rate: 0.95, local_search_rate: 0.25, local_search_max_iter: 3,
+  },
+  balanced: {
+    label: "Balanced", variant: "balanced",
+    population_size: 60, tournament_size: 3, elite_count: 4, granular_size: 12,
+    mutation_rate: 0.1, crossover_rate: 0.85, local_search_rate: 0.1, local_search_max_iter: 2,
+  },
+  tuned: {
+    label: "Tuned", variant: "tuned",
+    population_size: 100, tournament_size: 4, elite_count: 5, granular_size: 15,
+    mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
   },
 };
 
