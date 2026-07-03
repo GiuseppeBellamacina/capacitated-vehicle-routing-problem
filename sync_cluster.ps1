@@ -46,7 +46,7 @@ function Upload {
         "backend/tune_parameters.py",
         "backend/plot_convergence.py",
         "backend/format_latex.py",
-        "config/config_optuna.yaml",
+        "config",
         "instances",
         "cluster"
     )

@@ -100,6 +100,7 @@ def _short_label(config_name: str) -> str:
         "config_large": "Large",
         "config_ultra": "Ultra",
         "config_explore": "Explore",
+        "config_balanced": "Balanced",
         "config_tuned": "Tuned",
     }
     return labels.get(config_name, config_name)
@@ -182,13 +183,16 @@ def format_comparison_table(output_file: Path | None = None):
         params = {}
         if cfg_file.exists():
             import yaml
+
             with open(cfg_file) as f:
                 params = yaml.safe_load(f)
         pop = params.get("population_size", "?")
         tourn = params.get("tournament_size", "?")
         elite = params.get("elite_count", "?")
         gran = params.get("granular_size", "?")
-        legend_parts.append(f"{label}: pop={pop}, tournament={tourn}, elite={elite}, granular={gran}")
+        legend_parts.append(
+            f"{label}: pop={pop}, tournament={tourn}, elite={elite}, granular={gran}"
+        )
     lines.append(r"  \vspace{4pt}")
     lines.append(r"  \caption*{\footnotesize " + "; ".join(legend_parts) + r"}")
 
@@ -222,5 +226,7 @@ if __name__ == "__main__":
         format_comparison_table(out_path)
     else:
         print("Error: you must specify a subcommand.")
-        print("Example:  python format_latex.py table --results ../results/results.json")
+        print(
+            "Example:  python format_latex.py table --results ../results/results.json"
+        )
         print("Example:  python format_latex.py comparison")

@@ -1,5 +1,5 @@
 # ==============================================================================
-# CONFIGURAZIONE HGA — Variante "Tuned" (parametri ottimizzati da analisi comparativa)
+# CONFIGURAZIONE HGA — Variante "Balanced" (parametri ottimizzati da analisi comparativa)
 # ==============================================================================
 # Strategia: parte da Large (pop=100, tournament=4, elite=5) che ha dominato
 # su 4/6 istanze, ma riduce la popolazione a 60 per avere ~3.900 generazioni
@@ -29,5 +29,5 @@ elite_count: 4
 local_search_max_iter: 2
 granular_size: 12
 
-output_dir: results/config_tuned
-imgs_dir: docs/report/imgs/config_tuned
+output_dir: results/config_balanced
+imgs_dir: docs/report/imgs/config_balanced

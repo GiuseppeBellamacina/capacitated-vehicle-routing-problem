@@ -62,7 +62,9 @@ SEED_BASE = 12345
 # ── Objective function ──────────────────────────────────────────────────────
 
 
-def objective(trial: optuna.Trial, instances: list[str], budget: int, runs_per_trial: int = 1) -> float:
+def objective(
+    trial: optuna.Trial, instances: list[str], budget: int, runs_per_trial: int = 1
+) -> float:
     """Optuna objective: minimize mean gap across tuning instances.
 
     Args:
@@ -82,7 +84,9 @@ def objective(trial: optuna.Trial, instances: list[str], budget: int, runs_per_t
         "tournament_size": trial.suggest_int("tournament_size", 2, 5),
         "crossover_rate": trial.suggest_float("crossover_rate", 0.5, 1.0),
         "mutation_rate": trial.suggest_float("mutation_rate", 0.01, 0.5, log=True),
-        "local_search_rate": trial.suggest_float("local_search_rate", 0.01, 0.3, log=True),
+        "local_search_rate": trial.suggest_float(
+            "local_search_rate", 0.01, 0.3, log=True
+        ),
         "elite_count": trial.suggest_int("elite_count", 0, max(1, pop_size // 10)),
         "local_search_max_iter": trial.suggest_int("local_search_max_iter", 1, 10),
         "granular_size": trial.suggest_int("granular_size", 10, 40),
@@ -204,7 +208,7 @@ Examples:
     parser.add_argument(
         "--output",
         default=None,
-        help="Save best params as YAML config file (e.g., config/config_optuna_result.yaml)",
+        help="Save best params as YAML config file (e.g., config/config_tuned.yaml)",
     )
     return parser.parse_args()
 
@@ -255,7 +259,9 @@ def resolve_args(args: argparse.Namespace) -> dict:
         "runs": _get("runs_per_trial", args.runs, 1),
         "warm_start": warm_start,
         "output": _get("output_config", args.output, None),
-        "instances": args.instances if args.instances is not None else yaml_cfg.get("instances"),
+        "instances": (
+            args.instances if args.instances is not None else yaml_cfg.get("instances")
+        ),
     }
 
     return resolved
@@ -303,7 +309,16 @@ def main():
     # ── Progress callback ─────────────────────────────────────────────────
     def progress_callback(study: optuna.Study, trial: optuna.trial.FrozenTrial):
         if trial.value is not None:
-            pct = (len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]) / n_trials) * 100
+            pct = (
+                len(
+                    [
+                        t
+                        for t in study.trials
+                        if t.state == optuna.trial.TrialState.COMPLETE
+                    ]
+                )
+                / n_trials
+            ) * 100
             print(
                 f"  Trial {trial.number:3d} | "
                 f"mean_gap={trial.value:.4f} | "
@@ -330,7 +345,9 @@ def main():
     print("TUNING COMPLETE")
     print(f"{'='*70}")
     print(f"Time:           {elapsed:.1f}s ({elapsed/60:.1f} min)")
-    print(f"Completed:      {len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])}/{n_trials}")
+    print(
+        f"Completed:      {len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])}/{n_trials}"
+    )
     print(f"Best mean gap:  {study.best_value:.6f}")
     print("Best params:")
     for key, value in study.best_params.items():
@@ -342,10 +359,12 @@ def main():
     completed = [t for t in study.trials if t.value is not None]
     completed.sort(key=lambda t: t.value)
     for i, t in enumerate(completed[:5]):
-        print(f"  #{i+1}: gap={t.value:.6f} | pop={t.params['population_size']} "
-              f"mut={t.params['mutation_rate']:.3f} ls={t.params['local_search_rate']:.3f} "
-              f"tour={t.params['tournament_size']} elite={t.params['elite_count']} "
-              f"gran={t.params['granular_size']}")
+        print(
+            f"  #{i+1}: gap={t.value:.6f} | pop={t.params['population_size']} "
+            f"mut={t.params['mutation_rate']:.3f} ls={t.params['local_search_rate']:.3f} "
+            f"tour={t.params['tournament_size']} elite={t.params['elite_count']} "
+            f"gran={t.params['granular_size']}"
+        )
 
     # ── Save best config as YAML if requested ─────────────────────────────
     output_path = cfg["output"]
@@ -366,14 +385,14 @@ def main():
         }
 
         # Derive output paths from the config filename
-        config_name = output_path.stem  # e.g., "config_optuna_result"
+        config_name = output_path.stem  # e.g., "config_tuned"
         config["output_dir"] = f"results/{config_name}"
         config["imgs_dir"] = f"docs/report/imgs/{config_name}"
 
         with open(output_path, "w") as f:
             f.write(
                 f"# ==============================================================================\n"
-                f"# CONFIGURAZIONE HGA — Variante \"Optuna\" (parametri ottimizzati da Optuna)\n"
+                f'# CONFIGURAZIONE HGA — Variante "Optuna" (parametri ottimizzati da Optuna)\n'
                 f"# ==============================================================================\n"
                 f"# Studio: {cfg['study_name']}\n"
                 f"# Best mean gap: {study.best_value:.6f}\n"

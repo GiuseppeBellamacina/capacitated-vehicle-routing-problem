@@ -29,7 +29,7 @@ storage: sqlite:///tuning.db
 warm_start: true
 
 # Dove salvare il miglior config HGA trovato (pronto per run_experiments.py)
-output_config: config/config_optuna_result.yaml
+output_config: config/config_tuned.yaml
 
 # Directory di output per i log del tuning
 output_dir: results/tuning

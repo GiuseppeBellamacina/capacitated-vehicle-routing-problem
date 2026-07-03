@@ -115,6 +115,12 @@ run-exp() {
     cd "$PROJ_DIR" && sbatch cluster/run.sh
 }
 
+# Lancia tuning Optuna (sbatch cluster/tune.sh — cerca i migliori parametri HGA)
+# Uso: tune [config_name]  (es. tune config_optuna, default: config_optuna)
+tune() {
+    cd "$PROJ_DIR" && sbatch cluster/tune.sh "${1:-config_optuna}"
+}
+
 # Genera grafici dai risultati
 plots() {
     cd "$PROJ_DIR/backend" && python3 plot_convergence.py
@@ -140,7 +146,7 @@ clean() {
 
 # ── Meta ─────────────────────────────────────────────────────────────────────
 
-_CVRP_ALIASES="myjobs jobinfo killjob killalljobs runlog lastlog tree quota proj backend pip-clean pip-setup pip-reset run-exp plots latex-table pull-results clean"
+_CVRP_ALIASES="myjobs jobinfo killjob killalljobs runlog lastlog tree quota proj backend pip-clean pip-setup pip-reset run-exp tune plots latex-table pull-results clean"
 
 # Mostra i comandi disponibili
 cvrp-help() {
@@ -158,6 +164,7 @@ cvrp-help() {
     echo ""
     echo "── CVRP ──"
     echo "   run-exp           — lancia esperimenti via SLURM"
+    echo "   tune [name]   — lancia tuning Optuna via SLURM (default: config_optuna)"
     echo "   plots             — genera tutti i grafici"
     echo "   latex-table       — formatta tabella LaTeX"
     echo "   pull-results      — scarica risultati dal cluster"

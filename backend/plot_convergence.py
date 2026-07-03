@@ -69,27 +69,30 @@ CONFIG_COLORS = {
     "config_large": "#009988",
     "config_ultra": "#CC3311",
     "config_explore": "#EE3377",
-    "config_tuned": "#BBBB00",
+    "config_tuned": "#8855CC",
+    "config_balanced": "#BBBB00",
 }
 
 # ── Full parameter labels (kept for reference; not used by plotting code) ──
 CONFIG_LABELS = {
-    "config_small":   "Small (pop=10,cross=0.8,mut=0.1,local_rate=0.1,tourn=2,elite=2,local_max=2,granular=3)",
-    "config_medium":  "Medium (pop=30,cross=0.8,mut=0.1,local_rate=0.1,tourn=3,elite=3,local_max=2,granular=7)",
-    "config_large":   "Large (pop=100,cross=0.8,mut=0.1,local_rate=0.1,tourn=4,elite=5,local_max=2,granular=15)",
-    "config_ultra":   "Ultra (pop=5,cross=0.8,mut=0.1,local_rate=0.1,tourn=2,elite=1,local_max=2,granular=2)",
+    "config_small": "Small (pop=10,cross=0.8,mut=0.1,local_rate=0.1,tourn=2,elite=2,local_max=2,granular=3)",
+    "config_medium": "Medium (pop=30,cross=0.8,mut=0.1,local_rate=0.1,tourn=3,elite=3,local_max=2,granular=7)",
+    "config_large": "Large (pop=100,cross=0.8,mut=0.1,local_rate=0.1,tourn=4,elite=5,local_max=2,granular=15)",
+    "config_ultra": "Ultra (pop=5,cross=0.8,mut=0.1,local_rate=0.1,tourn=2,elite=1,local_max=2,granular=2)",
     "config_explore": "Explore (pop=100,cross=0.95,mut=0.4,local_rate=0.25,tourn=2,elite=1,local_max=3,granular=15)",
-    "config_tuned":   "Tuned (pop=60,cross=0.85,mut=0.1,local_rate=0.1,tourn=3,elite=4,local_max=2,granular=12)",
+    "config_balanced": "Balanced (pop=60,cross=0.85,mut=0.1,local_rate=0.1,tourn=3,elite=4,local_max=2,granular=12)",
+    "config_tuned": "Tuned (params TBD — optimized via Optuna)",
 }
 
 # ── Compact labels for graph titles & legends (no visual clutter) ──────────
 CONFIG_SHORT_LABELS = {
-    "config_small":   "Small (pop=10)",
-    "config_medium":  "Medium (pop=30)",
-    "config_large":   "Large (pop=100)",
-    "config_ultra":   "Ultra (pop=5)",
+    "config_small": "Small (pop=10)",
+    "config_medium": "Medium (pop=30)",
+    "config_large": "Large (pop=100)",
+    "config_ultra": "Ultra (pop=5)",
     "config_explore": "Explore (pop=100)",
-    "config_tuned":   "Tuned (pop=60)",
+    "config_balanced": "Balanced (pop=60)",
+    "config_tuned": "Tuned",
 }
 
 
@@ -702,7 +705,10 @@ def generate_runtime_chart(results: dict):
     ax.set_xlabel("Instance dimension (nodes)")
     ax.set_ylabel("Execution time (s)")
     ax.set_title(
-        f"Computational cost vs instance size — {CONFIG_LABEL}", fontsize=9.5, fontweight="normal", pad=10
+        f"Computational cost vs instance size — {CONFIG_LABEL}",
+        fontsize=9.5,
+        fontweight="normal",
+        pad=10,
     )
     ax.grid(True)
 
@@ -1140,7 +1146,11 @@ def generate_plots(results_file: Path, imgs_dir: Path):
     cfg_name = imgs_dir.name
     CONFIG_LABEL = CONFIG_SHORT_LABELS.get(
         cfg_name,
-        cfg_name.replace("config_", "").replace("_", " ").title() if cfg_name.startswith("config_") else "",
+        (
+            cfg_name.replace("config_", "").replace("_", " ").title()
+            if cfg_name.startswith("config_")
+            else ""
+        ),
     )
 
     if not results_file.exists():
@@ -1221,7 +1231,9 @@ if __name__ == "__main__":
                 imgs_dir = Path(f"../docs/report/imgs/{cfg_name}")
                 print(f"Auto-detected: --results {results_file}  --imgs {imgs_dir}")
             else:
-                print(f"Error: {results_file} not found and no config_*/results.json discovered.")
+                print(
+                    f"Error: {results_file} not found and no config_*/results.json discovered."
+                )
                 sys.exit(1)
 
         generate_plots(results_file, imgs_dir)
