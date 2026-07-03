@@ -100,6 +100,7 @@ def _short_label(config_name: str) -> str:
         "config_large": "Large",
         "config_ultra": "Ultra",
         "config_explore": "Explore",
+        "config_tuned": "Tuned",
     }
     return labels.get(config_name, config_name)
 

@@ -1,0 +1,33 @@
+# ==============================================================================
+# CONFIGURAZIONE HGA — Variante "Tuned" (parametri ottimizzati da analisi comparativa)
+# ==============================================================================
+# Strategia: parte da Large (pop=100, tournament=4, elite=5) che ha dominato
+# su 4/6 istanze, ma riduce la popolazione a 60 per avere ~3.900 generazioni
+# invece di ~2.300 — più cicli evolutivi con ancora sufficiente diversità.
+#
+# Confronto con Large:
+#   population_size: 100 → 60    (~1.7x più generazioni)
+#   tournament_size: 4   → 3     (pressione selettiva alta ma non estrema)
+#   elite_count:      5   → 4    (buona conservazione senza stagnazione)
+#   granular_size:    15  → 12   (local search più veloce, stesso pruning)
+#   crossover_rate:   0.8 → 0.85 (leggero boost al crossover)
+#
+# Con ~3.900 generazioni vs ~2.300 di Large:
+# - Più cicli di raffinamento genetico
+# - Abbastanza diversità (pop=60) per esplorare
+# - Pressione selettiva forte ma non eccessiva (tournament=3)
+# - Elite count buono per non perdere le migliori soluzioni
+
+population_size: 60
+max_evaluations: 350000
+runs: 5
+crossover_rate: 0.85
+mutation_rate: 0.1
+local_search_rate: 0.1
+tournament_size: 3
+elite_count: 4
+local_search_max_iter: 2
+granular_size: 12
+
+output_dir: results/config_tuned
+imgs_dir: docs/report/imgs/config_tuned
