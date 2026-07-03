@@ -8,7 +8,7 @@
 # Rappresenta il numero di soluzioni (individui) mantenute contemporaneamente nel pool genetico.
 # Un valore maggiore aumenta l'esplorazione dello spazio di ricerca ma richiede più tempo CPU.
 # Valore consigliato da consegna: 100
-population_size: 10
+population_size: 100
 
 # Numero massimo di valutazioni (Fitness Evaluations - FE)
 # Il budget di calcolo concesso all'algoritmo per ogni run. Il processo si interrompe
@@ -65,4 +65,4 @@ local_search_max_iter: 2
 # 'granular_size' vicini più prossimi per valutare spostamenti (Relocate) o scambi (Exchange).
 # Riduce la complessità computazionale della ricerca locale da O(N^2) a O(N * granular_size).
 # Valore consigliato: 15
-granular_size: 3
+granular_size: 15

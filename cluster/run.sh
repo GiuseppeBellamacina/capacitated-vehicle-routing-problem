@@ -20,9 +20,10 @@
 #SBATCH --job-name=train
 #SBATCH --account=thesis-course
 #SBATCH --partition=thesis-course
-#SBATCH --mem=8G
-#SBATCH --cpus-per-task=4
-#SBATCH --time=04:00:00
+#SBATCH --qos=gpu-xlarge
+#SBATCH --mem=48G
+#SBATCH --cpus-per-task=8
+#SBATCH --gres=gpu:1 --gres=shard:22528
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=bellamacina50@gmail.com
 #SBATCH --output=logs/slurm-train-%j.log
