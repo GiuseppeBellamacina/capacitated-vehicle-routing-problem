@@ -43,9 +43,10 @@ function Upload {
         "backend/pyproject.toml",
         "backend/main.py",
         "backend/run_experiments.py",
+        "backend/tune_parameters.py",
         "backend/plot_convergence.py",
         "backend/format_latex.py",
-        "config",
+        "config/config_optuna.yaml",
         "instances",
         "cluster"
     )

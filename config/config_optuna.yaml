@@ -1,0 +1,38 @@
+# ==============================================================================
+# CONFIGURAZIONE OPTUNA — Hyperparameter tuning per HGA
+# ==============================================================================
+# Questo config controlla il processo di tuning automatico (tune_parameters.py).
+# NON contiene i parametri HGA (quelli li trova Optuna), ma i metaparametri
+# del processo di ottimizzazione stesso.
+
+# Nome dello studio Optuna (per riprendere sessioni precedenti)
+study_name: hga_tuning
+
+# Numero di trial (iterazioni di tuning) da eseguire
+trials: 100
+
+# Budget di valutazioni per ogni trial (molto inferiore ai 350k della produzione)
+budget: 50000
+
+# Run indipendenti per istanza in ogni trial (1 = più veloce, ma più rumoroso)
+runs_per_trial: 1
+
+# Istanze su cui fare tuning (lista vuota = usa le rappresentative, una per set)
+instances: []
+# Esempio con istanze specifiche:
+# instances: [A-n45-k7, B-n66-k9, E-n76-k8, P-n50-k10]
+
+# Storage Optuna (null = in-memory, "sqlite:///tuning.db" = persistente su disco)
+storage: sqlite:///tuning.db
+
+# Warm-start: se true, il primo trial usa i parametri default (pop=100, etc.)
+warm_start: true
+
+# Dove salvare il miglior config HGA trovato (pronto per run_experiments.py)
+output_config: config/config_optuna_result.yaml
+
+# Directory di output per i log del tuning
+output_dir: results/tuning
+
+# Istanza seed per riproducibilità
+seed: 42

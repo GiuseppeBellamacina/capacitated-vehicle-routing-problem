@@ -69,13 +69,27 @@ CONFIG_COLORS = {
     "config_large": "#009988",
     "config_ultra": "#CC3311",
     "config_explore": "#EE3377",
+    "config_tuned": "#BBBB00",
 }
+
+# ── Full parameter labels (kept for reference; not used by plotting code) ──
 CONFIG_LABELS = {
-    "config_small": "Small (pop=10)",
-    "config_medium": "Medium (pop=30)",
-    "config_large": "Large (pop=100)",
-    "config_ultra": "Ultra (pop=5)",
-    "config_explore": "Explore (mut=0.4)",
+    "config_small":   "Small (pop=10,cross=0.8,mut=0.1,local_rate=0.1,tourn=2,elite=2,local_max=2,granular=3)",
+    "config_medium":  "Medium (pop=30,cross=0.8,mut=0.1,local_rate=0.1,tourn=3,elite=3,local_max=2,granular=7)",
+    "config_large":   "Large (pop=100,cross=0.8,mut=0.1,local_rate=0.1,tourn=4,elite=5,local_max=2,granular=15)",
+    "config_ultra":   "Ultra (pop=5,cross=0.8,mut=0.1,local_rate=0.1,tourn=2,elite=1,local_max=2,granular=2)",
+    "config_explore": "Explore (pop=100,cross=0.95,mut=0.4,local_rate=0.25,tourn=2,elite=1,local_max=3,granular=15)",
+    "config_tuned":   "Tuned (pop=60,cross=0.85,mut=0.1,local_rate=0.1,tourn=3,elite=4,local_max=2,granular=12)",
+}
+
+# ── Compact labels for graph titles & legends (no visual clutter) ──────────
+CONFIG_SHORT_LABELS = {
+    "config_small":   "Small (pop=10)",
+    "config_medium":  "Medium (pop=30)",
+    "config_large":   "Large (pop=100)",
+    "config_ultra":   "Ultra (pop=5)",
+    "config_explore": "Explore (pop=100)",
+    "config_tuned":   "Tuned (pop=60)",
 }
 
 
@@ -1025,7 +1039,7 @@ def generate_config_comparison():
     for ci, cfg_name in enumerate(config_names):
         offset = (ci - (n_cfg - 1) / 2) * bar_width
         color = CONFIG_COLORS.get(cfg_name, "#999999")
-        label = CONFIG_LABELS.get(cfg_name, cfg_name)
+        label = CONFIG_SHORT_LABELS.get(cfg_name, cfg_name)
         ax_gap.bar(
             x + offset,
             gap_data[ci],
@@ -1124,7 +1138,7 @@ def generate_plots(results_file: Path, imgs_dir: Path):
 
     # Derive config label from imgs_dir (e.g. docs/report/imgs/config_ultra -> "Ultra (pop=5)")
     cfg_name = imgs_dir.name
-    CONFIG_LABEL = CONFIG_LABELS.get(
+    CONFIG_LABEL = CONFIG_SHORT_LABELS.get(
         cfg_name,
         cfg_name.replace("config_", "").replace("_", " ").title() if cfg_name.startswith("config_") else "",
     )
