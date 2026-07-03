@@ -1,11 +1,14 @@
 """Minimal test to diagnose numba HGA issues."""
+
 import sys
 import time
+
 sys.path.insert(0, ".")
 
 print("Importing numba_utils...")
 t0 = time.time()
 from cvrp.numba_utils import split_numba, two_opt_numba
+
 print(f"  Import done in {time.time()-t0:.1f}s")
 
 import numpy as np
@@ -41,14 +44,18 @@ print(f"  Cost: {cost:.2f}, Routes: {num_routes}")
 # Now test full HGA
 print("\nTesting full HGA on A-n45-k7...")
 t0 = time.time()
-from cvrp.instance import read_instance
 from cvrp.hga import HybridGeneticAlgorithm
+from cvrp.instance import read_instance
 
 instance = read_instance("../instances/A-n45-k7.vrp")
 print(f"  Instance loaded: {instance.name}, {instance.num_customers} customers")
 
+
 def progress_callback(data):
-    print(f"  [Callback] Gen {data['generation']}: Evals {data['evaluations']}/{hga.max_evaluations}, Best Cost: {data['best_cost']:.2f}")
+    print(
+        f"  [Callback] Gen {data['generation']}: Evals {data['evaluations']}/{hga.max_evaluations}, Best Cost: {data['best_cost']:.2f}"
+    )
+
 
 print("  Initializing HGA object...")
 hga = HybridGeneticAlgorithm(

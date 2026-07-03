@@ -1,9 +1,10 @@
 """VRP instance parser for CVRPLIB format."""
 
 import math
-import numpy as np
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import numpy as np
 
 
 @dataclass

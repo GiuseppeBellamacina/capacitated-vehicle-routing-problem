@@ -9,9 +9,7 @@ from numba import njit
 
 
 @njit(cache=True, nogil=True)
-def route_cost_numba(
-    route: np.ndarray, dist: np.ndarray, depot: int
-) -> float:
+def route_cost_numba(route: np.ndarray, dist: np.ndarray, depot: int) -> float:
     """Compute cost of a single route (array of customer indices)."""
     n = len(route)
     if n == 0:
@@ -139,9 +137,7 @@ def split_numba(
 
 
 @njit(cache=True, nogil=True)
-def two_opt_numba(
-    route: np.ndarray, dist: np.ndarray, depot: int
-) -> np.ndarray:
+def two_opt_numba(route: np.ndarray, dist: np.ndarray, depot: int) -> np.ndarray:
     """2-opt improvement for a single route (steepest descent)."""
     n = len(route)
     if n < 3:
@@ -207,9 +203,7 @@ def two_opt_numba(
 
 
 @njit(cache=True, nogil=True)
-def or_opt_numba(
-    route: np.ndarray, dist: np.ndarray, depot: int
-) -> np.ndarray:
+def or_opt_numba(route: np.ndarray, dist: np.ndarray, depot: int) -> np.ndarray:
     """Or-opt: relocate a segment of 1-3 consecutive nodes (steepest descent)."""
     n = len(route)
     if n < 3:
@@ -238,9 +232,7 @@ def or_opt_numba(
                         continue
 
                     # Build new route: remaining (without segment) with segment inserted at j
-                    new_cost = _or_opt_delta(
-                        best, dist, depot, n, i, seg_len, j
-                    )
+                    new_cost = _or_opt_delta(best, dist, depot, n, i, seg_len, j)
                     if new_cost < best_move_cost - 1e-10:
                         best_move_cost = new_cost
                         best_seg_len = seg_len

@@ -10,18 +10,14 @@ Implements a permutation-based GA with:
 
 import random
 import time
-import numpy as np
 from dataclasses import dataclass
 from typing import Callable
 
+import numpy as np
+
 from .instance import CVRPInstance, compute_distance_matrix
+from .numba_utils import or_opt_numba, order_crossover_numba, split_numba, two_opt_numba
 from .utils import route_demand
-from .numba_utils import (
-    split_numba,
-    two_opt_numba,
-    or_opt_numba,
-    order_crossover_numba,
-)
 
 
 @dataclass
@@ -76,7 +72,7 @@ class HybridGeneticAlgorithm:
         self.elite_count = elite_count
         self.local_search_max_iter = local_search_max_iter
         self.granular_size = granular_size
-        self.use_granular_search = (granular_size > 0)
+        self.use_granular_search = granular_size > 0
         self.callback = callback
 
         if seed is not None:
@@ -109,13 +105,12 @@ class HybridGeneticAlgorithm:
         for i in self.customers:
             # Sort other customers by distance
             sorted_neighbors = sorted(
-                self.customers,
-                key=lambda j: self.dist_matrix[i][j]
+                self.customers, key=lambda j: self.dist_matrix[i][j]
             )
             # Filter out self
             sorted_neighbors = [j for j in sorted_neighbors if j != i]
             # Take the top granular_size neighbors
-            neighborhoods[i] = set(sorted_neighbors[:self.granular_size])
+            neighborhoods[i] = set(sorted_neighbors[: self.granular_size])
         return neighborhoods
 
     # --- Split Algorithm (Prins, 2004) ---
@@ -180,18 +175,25 @@ class HybridGeneticAlgorithm:
                 for node in smallest:
                     placed = False
                     for route in routes:
-                        if route_demand(route, self.demands) + self.demands[node] <= self.capacity:
+                        if (
+                            route_demand(route, self.demands) + self.demands[node]
+                            <= self.capacity
+                        ):
                             route.append(node)
                             placed = True
                             break
                     if not placed:
                         # Force into route with most remaining capacity (slightly infeasible)
-                        best_route = min(routes, key=lambda r: route_demand(r, self.demands))
+                        best_route = min(
+                            routes, key=lambda r: route_demand(r, self.demands)
+                        )
                         best_route.append(node)
 
         cost = self._compute_cost(routes)
         self.evaluations += 1
-        return Solution(routes=routes, cost=cost, feasible=len(routes) <= self.num_vehicles)
+        return Solution(
+            routes=routes, cost=cost, feasible=len(routes) <= self.num_vehicles
+        )
 
     def _compute_cost(self, routes: list[list[int]]) -> float:
         """Compute total cost of a solution (inline, fast path for relocate/exchange)."""
@@ -292,7 +294,9 @@ class HybridGeneticAlgorithm:
         population.append(self.split(savings_perm))
 
         # Add random permutations
-        print(f"    [HGA Init] Generating remaining {self.population_size - len(population)} random solutions...")
+        print(
+            f"    [HGA Init] Generating remaining {self.population_size - len(population)} random solutions..."
+        )
         while len(population) < self.population_size:
             perm = self._random_permutation()
             population.append(self.split(perm))
@@ -316,9 +320,7 @@ class HybridGeneticAlgorithm:
 
     # --- Crossover: Order Crossover (OX) ---
 
-    def order_crossover(
-        self, parent1: Solution, parent2: Solution
-    ) -> list[int]:
+    def order_crossover(self, parent1: Solution, parent2: Solution) -> list[int]:
         """Order Crossover: preserves relative order from both parents."""
         # Extract permutations from solutions
         p1 = []
@@ -462,11 +464,15 @@ class HybridGeneticAlgorithm:
 
                     # O(1) delta on route_from by removing 'node'
                     prev_from = route_from[fi - 1] if fi > 0 else depot
-                    next_from = route_from[fi + 1] if fi < len(route_from) - 1 else depot
+                    next_from = (
+                        route_from[fi + 1] if fi < len(route_from) - 1 else depot
+                    )
                     if len(route_from) == 1:
                         delta_from = -(dm[depot, node] + dm[node, depot])
                     else:
-                        delta_from = dm[prev_from, next_from] - (dm[prev_from, node] + dm[node, next_from])
+                        delta_from = dm[prev_from, next_from] - (
+                            dm[prev_from, node] + dm[node, next_from]
+                        )
 
                     for rj, route_to in enumerate(best):
                         if ri == rj:
@@ -480,14 +486,21 @@ class HybridGeneticAlgorithm:
                             if self.use_granular_search:
                                 pn = route_to[pos - 1] if pos > 0 else 0
                                 nn = route_to[pos] if pos < len(route_to) else 0
-                                if (pn != 0 and pn not in self.granular_neighbors[node]) and \
-                                   (nn != 0 and nn not in self.granular_neighbors[node]):
+                                if (
+                                    pn != 0 and pn not in self.granular_neighbors[node]
+                                ) and (
+                                    nn != 0 and nn not in self.granular_neighbors[node]
+                                ):
                                     continue
 
                             # O(1) delta on route_to by inserting 'node'
                             prev_node = route_to[pos - 1] if pos > 0 else depot
                             next_node = route_to[pos] if pos < len(route_to) else depot
-                            delta_to = dm[prev_node, node] + dm[node, next_node] - dm[prev_node, next_node]
+                            delta_to = (
+                                dm[prev_node, node]
+                                + dm[node, next_node]
+                                - dm[prev_node, next_node]
+                            )
 
                             new_cost = best_cost + delta_from + delta_to
 
@@ -540,26 +553,32 @@ class HybridGeneticAlgorithm:
                         for bj, node_b in enumerate(route_b):
                             # Granular search filter
                             if self.use_granular_search:
-                                if node_b not in self.granular_neighbors[node_a] and \
-                                   node_a not in self.granular_neighbors[node_b]:
+                                if (
+                                    node_b not in self.granular_neighbors[node_a]
+                                    and node_a not in self.granular_neighbors[node_b]
+                                ):
                                     continue
 
                             dem_b = demands[node_b]
                             # O(1) capacity check using pre-computed loads
-                            if route_loads[ri] - dem_a + dem_b > self.capacity or \
-                               route_loads[rj] - dem_b + dem_a > self.capacity:
+                            if (
+                                route_loads[ri] - dem_a + dem_b > self.capacity
+                                or route_loads[rj] - dem_b + dem_a > self.capacity
+                            ):
                                 continue
 
                             # O(1) delta computation for swap
                             prev_a = route_a[ai - 1] if ai > 0 else depot
                             next_a = route_a[ai + 1] if ai < len(route_a) - 1 else depot
-                            delta_a = (dm[prev_a, node_b] + dm[node_b, next_a]) - \
-                                      (dm[prev_a, node_a] + dm[node_a, next_a])
+                            delta_a = (dm[prev_a, node_b] + dm[node_b, next_a]) - (
+                                dm[prev_a, node_a] + dm[node_a, next_a]
+                            )
 
                             prev_b = route_b[bj - 1] if bj > 0 else depot
                             next_b = route_b[bj + 1] if bj < len(route_b) - 1 else depot
-                            delta_b = (dm[prev_b, node_a] + dm[node_a, next_b]) - \
-                                      (dm[prev_b, node_b] + dm[node_b, next_b])
+                            delta_b = (dm[prev_b, node_a] + dm[node_a, next_b]) - (
+                                dm[prev_b, node_b] + dm[node_b, next_b]
+                            )
 
                             new_cost = best_cost + delta_a + delta_b
 
@@ -632,7 +651,9 @@ class HybridGeneticAlgorithm:
         best_gen = 0
         self.generation = 0
 
-        print(f"  [HGA Run] Population initialized. Best initial cost: {self.best_solution.cost:.2f}")
+        print(
+            f"  [HGA Run] Population initialized. Best initial cost: {self.best_solution.cost:.2f}"
+        )
 
         # Dynamically scale convergence interval to record around 100 points
         if convergence_interval == 5000:
@@ -646,7 +667,13 @@ class HybridGeneticAlgorithm:
         print("  [HGA Run] Starting evolution loop...")
 
         from tqdm import tqdm
-        pbar = tqdm(total=self.max_evaluations, desc="  Evolution", leave=False, initial=self.evaluations)
+
+        pbar = tqdm(
+            total=self.max_evaluations,
+            desc="  Evolution",
+            leave=False,
+            initial=self.evaluations,
+        )
 
         while self.evaluations < self.max_evaluations:
             pbar.n = self.evaluations
@@ -692,7 +719,10 @@ class HybridGeneticAlgorithm:
                     self.best_solution = child
                     best_gen = self.generation
 
-                if track_convergence and self.evaluations - last_recorded_evals >= convergence_interval:
+                if (
+                    track_convergence
+                    and self.evaluations - last_recorded_evals >= convergence_interval
+                ):
                     self.best_cost_history.append(self.best_solution.cost)
                     last_recorded_evals = self.evaluations
 
@@ -713,16 +743,26 @@ class HybridGeneticAlgorithm:
 
             # WebSocket callback with time-based throttling (max 10Hz) and instant updates on improvement
             now = time.time()
-            is_new_best = (best_gen == self.generation)
-            if self.callback and (is_new_best or (now - last_callback_time >= 0.1) or self.evaluations >= self.max_evaluations):
-                self.callback({
-                    "generation": self.generation,
-                    "evaluations": self.evaluations,
-                    "best_cost": self.best_solution.cost,
-                    "population_avg": sum(s.cost for s in population) / len(population),
-                    "population_size": len(population),
-                    "routes": [[int(n) for n in r] for r in (self.best_solution.routes or [])],
-                })
+            is_new_best = best_gen == self.generation
+            if self.callback and (
+                is_new_best
+                or (now - last_callback_time >= 0.1)
+                or self.evaluations >= self.max_evaluations
+            ):
+                self.callback(
+                    {
+                        "generation": self.generation,
+                        "evaluations": self.evaluations,
+                        "best_cost": self.best_solution.cost,
+                        "population_avg": sum(s.cost for s in population)
+                        / len(population),
+                        "population_size": len(population),
+                        "routes": [
+                            [int(n) for n in r]
+                            for r in (self.best_solution.routes or [])
+                        ],
+                    }
+                )
                 last_callback_time = now
 
             if self.evaluations >= self.max_evaluations:

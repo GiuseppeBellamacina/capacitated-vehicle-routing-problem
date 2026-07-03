@@ -8,8 +8,8 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from cvrp.instance import read_instance
 from cvrp.hga import HybridGeneticAlgorithm
+from cvrp.instance import read_instance
 
 app = FastAPI(title="CVRP Solver", version="0.1.0")
 
@@ -260,9 +260,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 )
             elif action == "list_instances":
                 instances = get_available_instances()
-                await websocket.send_json(
-                    {"type": "instances", "data": instances}
-                )
+                await websocket.send_json({"type": "instances", "data": instances})
             elif action == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:

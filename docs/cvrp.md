@@ -21,6 +21,90 @@ L'obiettivo è determinare un insieme di percorsi di costo minimo tali che:
 3.  La somma delle domande dei clienti in qualsiasi percorso non superi la capacità del veicolo $Q$:
     $$\sum_{i \in R_k} d_i \le Q \quad \forall R_k$$
 
+### 1.1 Come Vengono Calcolati i Valori Ottimi di Riferimento (BKS)
+
+I valori ottimi (o *Best-Known Solutions*, BKS) associati a ciascuna istanza CVRP non sono calcolati dal nostro algoritmo genetico: sono pre-calcolati e memorizzati all'interno dei file `.vrp` nella riga `COMMENT` (es. `Optimal value: 1146` per `A-n45-k7`). Questa sezione spiega come la comunità scientifica è arrivata a determinare tali valori.
+
+#### 1.1.1 Il Problema della Prova di Ottimalità
+
+Il CVRP è un problema **NP-difficile**: trovare la soluzione ottima per forza bruta richiederebbe di esplorare uno spazio di $n!$ permutazioni, un'impresa computazionalmente impossibile già per $n = 50$ clienti. Per le istanze dei benchmark classici (set A, B, E, P, con $n$ fino a 101), i valori ottimi **non sono stati trovati per caso**: sono stati **provati matematicamente** tramite algoritmi esatti di ottimizzazione combinatoria.
+
+La differenza tra un BKS e un ottimo provato è cruciale:
+
+| Caratteristica | Best-Known Solution (BKS) | Ottimo Provato |
+| :--- | :--- | :--- |
+| **Definizione** | Il miglior costo trovato finora da qualsiasi algoritmo (euristico o esatto). | Il costo matematicamente minimo possibile. |
+| **Certezza** | Potrebbe essere migliorabile: nessuno sa se esista una soluzione migliore. | Nessuna soluzione migliore può esistere — è un teorema matematico. |
+| **Metodo** | Ottenuto tramite metaeuristiche (Genetici, Tabu Search, Simulated Annealing). | Ottenuto tramite algoritmi esatti (Branch-and-Cut, Branch-Cut-and-Price). |
+| **Fornisce** | Un *upper bound* (limite superiore) al costo minimo. | L'esatto costo minimo. |
+
+Per tutte le 10 istanze dei set A, B, E, P utilizzate in questo progetto, il BKS **coincide con l'ottimo provato**: ogni valore è stato certificato matematicamente da algoritmi esatti.
+
+#### 1.1.2 Formulazione Matematica per gli Algoritmi Esatti
+
+Gli algoritmi esatti non lavorano direttamente con permutazioni di clienti (come fa il nostro HGA), ma utilizzano formulazioni di **programmazione lineare intera (ILP)**.
+
+**Formulazione a Due Indici (two-index vehicle flow).** La più classica formulazione ILP del CVRP utilizza variabili binarie $x_{ij} \in \{0, 1\}$ che indicano se un veicolo attraversa l'arco $(i, j)$. Il vincolo di capacità viene imposto tramite i cosiddetti *capacity cuts*:
+
+$$\sum_{i \in S}\sum_{j \notin S} x_{ij} \ge \left\lceil \frac{\sum_{i \in S} d_i}{Q} \right\rceil \quad \forall S \subseteq V \setminus \{0\}, S \neq \emptyset$$
+
+Questo vincolo stabilisce che, per ogni sottoinsieme di clienti $S$, il numero minimo di veicoli che devono entrare/uscire da $S$ è almeno il numero di veicoli necessario a soddisfarne la domanda totale. Poiché esistono $2^{n-1}$ sottoinsiemi, questi vincoli sono in numero esponenziale e **non possono essere inseriti tutti a priori**.
+
+**Formulazione di Set Partitioning (SP).** Una formulazione più potente modella il CVRP come selezione di un sottoinsieme ottimo di rotte valide:
+
+$$\min \sum_{r \in \Omega} c_r \lambda_r \quad \text{s.t.} \quad \sum_{r \in \Omega : i \in r} \lambda_r = 1 \; \; \forall i \in V \setminus \{0\}, \quad \lambda_r \in \{0, 1\}$$
+
+dove $\Omega$ è l'insieme di **tutte le rotte ammissibili** (che rispettano la capacità $Q$), $c_r$ è il costo della rotta $r$, e $\lambda_r$ è una variabile binaria che vale 1 se la rotta $r$ è selezionata. Il vincolo impone che ogni cliente appartenga esattamente a una rotta selezionata.
+
+Il problema di questa formulazione è che $|\Omega|$ (il numero totale di rotte possibili) è **astronomico** — anche per 50 clienti può superare $10^{20}$. Non è possibile enumerarle tutte.
+
+#### 1.1.3 Algoritmi Esatti: Branch-and-Cut e Branch-Cut-and-Price
+
+Per risolvere queste formulazioni in pratica, la comunità scientifica ha sviluppato famiglie di algoritmi esatti che combinano tecniche di **pianificazione lineare**, **teoria dei grafi** e **ricerca ad albero**:
+
+**Branch-and-Cut (Lysgaard, Letchford & Eglese, 2004).**  
+Questo algoritmo lavora sulla formulazione a due indici:
+1. **Branch**: si costruisce un albero di ricerca in cui ogni nodo è un problema ILP rilassato (le variabili binarie $x_{ij}$ diventano continue $0 \le x_{ij} \le 1$).
+2. **Cut**: risolto il rilassamento lineare (LP) al nodo corrente, si verifica se la soluzione frazionaria viola qualche capacity cut. I vincoli violati vengono **generati dinamicamente** risolvendo un problema di *min-cut* su un grafo ausiliario (procedura di separazione). Questi tagli vengono aggiunti al modello, "tagliando via" soluzioni frazionarie invalide.
+3. **Bound**: il valore ottimo del LP rilassato (con tutti i tagli aggiunti) fornisce un *lower bound*. Se questo supera il miglior *upper bound* (costo della migliore soluzione intera trovata), il nodo viene potato: nessuna soluzione migliore può esistere in quel ramo.
+4. Quando tutti i rami sono stati potati o risolti, la migliore soluzione intera superstite è **provatamente ottima**.
+
+**Branch-Cut-and-Price (Fukasawa et al., 2006).**  
+Questo algoritmo — considerato lo stato dell'arte per il CVRP — estende il Branch-and-Cut lavorando sulla formulazione di Set Partitioning:
+- **Column Generation (Pricing)**: solo un piccolo sottoinsieme di rotte $\Omega' \subset \Omega$ viene mantenuto nel modello. Dopo aver risolto il *Master Problem* (MP) rilassato, si usa un *pricing subproblem* per scoprire se esistono rotte non ancora incluse che potrebbero migliorare la soluzione. Questo sottoproblema è uno **Shortest Path Problem with Resource Constraints (SPPRC)**: dato un grafo in cui ogni cliente ha un peso (la domanda $d_i$), trovare il cammino di costo minimo (con costo modificato dai *prezzi ombra* — o *duali* — del MP) che parte e torna al deposito rispettando il vincolo di capacità $Q$. Se il cammino trovato ha costo ridotto negativo, viene aggiunto come nuova colonna (rotta) al MP.
+- **Cut**: come nel Branch-and-Cut, si aggiungono *rounded capacity cuts* per rafforzare il rilassamento.
+- **Branch**: quando la soluzione LP è frazionaria, si brancha (tipicamente sul numero di veicoli o su archi specifici) per forzare l'interezza.
+- Il processo si ripete a ogni nodo dell'albero di ricerca: **generazione di colonne + separazione di tagli + branching**.
+
+**Lagrangian Relaxation (approccio storico).**  
+Una tecnica alternativa per calcolare lower bound molto stretti è il rilassamento lagrangiano: i vincoli di assegnamento ($\sum_r \lambda_r = 1$) vengono spostati nella funzione obiettivo con moltiplicatori di Lagrange $\mu_i$. Il problema risultante si decompone in $m$ sottoproblemi indipendenti (uno per veicolo), ciascuno dei quali è uno SPPRC "puro" risolvibile efficientemente. I moltiplicatori $\mu_i$ vengono ottimizzati tramite **subgradient optimization**. Sebbene meno potente del Branch-Cut-and-Price moderno, il rilassamento lagrangiano ha storicamente fornito i primi lower bound competitivi per il CVRP.
+
+#### 1.1.4 Schema Riassuntivo del Processo di Prova
+
+```mermaid
+flowchart TD
+    A[Upper Bound: soluzione euristica iniziale<br/>(es. Clarke & Wright Savings)] --> B
+    subgraph BCP [Branch-Cut-and-Price]
+        B[Rilassamento LP del Master Problem] --> C[Column Generation:<br/>trova nuove rotte a costo ridotto negativo]
+        C --> D[Separazione di Tagli:<br/>aggiungi capacity cuts violati]
+        D --> E{LP ottimo = intero?}
+        E -->|No| F[Branching: dividi il problema]
+        F --> B
+        E -->|Sì| G[Upper Bound aggiornato]
+    end
+    G --> H{Lower Bound ≥ Upper Bound<br/>in tutti i rami?}
+    H -->|No| BCP
+    H -->|Sì| I[✅ OTTIMO PROVATO]
+```
+
+Per le istanze dei set A, B, E, P utilizzate in questo progetto, il processo di Branch-Cut-and-Price ha certificato l'ottimalità in tempi che variano da pochi secondi (A-n45-k7) a diverse ore (E-n101-k14) su hardware scientifico. I valori così ottenuti sono quelli riportati nella riga `Optimal value` di ciascun file `.vrp` e costituiscono il riferimento (ground truth) contro cui valutiamo le performance del nostro HGA.
+
+#### 1.1.5 Riferimenti Bibliografici
+
+- Lysgaard, J., Letchford, A. N., & Eglese, R. W. (2004). *A new branch-and-cut algorithm for the capacitated vehicle routing problem.* Mathematical Programming, 100(2), 423–445.
+- Fukasawa, R., Longo, H., Lysgaard, J., Aragão, M. P., Reis, M., Uchoa, E., & Werneck, R. F. (2006). *Robust branch-and-cut-and-price for the capacitated vehicle routing problem.* Mathematical Programming, 106(3), 491–511.
+- Ralphs, T. K., Kopman, L., Pulleyblank, W. R., & Trotter, L. E. (2003). *On the capacitated vehicle routing problem.* Mathematical Programming, 94(2-3), 343–359.
+
 ---
 
 ## 2. L'Algoritmo Genetico Ibrido (HGA) o Memetico

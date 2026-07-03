@@ -1,13 +1,18 @@
 """Quick test script to verify HGA works correctly."""
+
 import sys
+
 sys.path.insert(0, ".")
 
-from cvrp.instance import read_instance
 from cvrp.hga import HybridGeneticAlgorithm
+from cvrp.instance import read_instance
+
 
 def test_instance(name: str):
     instance = read_instance(f"../instances/{name}.vrp")
-    print(f"Testing {name}: {instance.dimension} nodes, {instance.num_vehicles} vehicles, capacity={instance.capacity}")
+    print(
+        f"Testing {name}: {instance.dimension} nodes, {instance.num_vehicles} vehicles, capacity={instance.capacity}"
+    )
     print(f"  Optimal: {instance.optimal_value}")
 
     hga = HybridGeneticAlgorithm(
@@ -43,6 +48,7 @@ def test_instance(name: str):
         print(f"  All {len(expected)} customers visited [OK]")
 
     print()
+
 
 if __name__ == "__main__":
     test_instance("A-n45-k7")

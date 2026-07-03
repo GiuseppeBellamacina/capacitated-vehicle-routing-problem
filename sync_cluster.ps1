@@ -1,0 +1,181 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("upload", "download", "download-results", "download-imgs", "push", "pull")]
+    [string]$Action,
+
+    [Parameter(Mandatory = $false)]
+    [string]$Path  # relative path for push/pull (e.g. "backend/cvrp/hga.py" or "cluster/")
+)
+
+$CLUSTER_USER = "bllgpp02h24c351g"
+$CLUSTER_HOST = "gcluster.dmi.unict.it"
+$REMOTE  = "${CLUSTER_USER}@${CLUSTER_HOST}:~/capacitated-vehicle-routing-problem"
+$SSH_TARGET = "${CLUSTER_USER}@${CLUSTER_HOST}"
+$LOCAL   = $PSScriptRoot
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Upload: sends project to cluster via SCP
+# ══════════════════════════════════════════════════════════════════════════════
+function Upload {
+    Write-Host "Uploading CVRP project to cluster..." -ForegroundColor Cyan
+
+    # Clean __pycache__ before upload
+    Write-Progress -Activity "Upload" -Status "Cleaning __pycache__..." -PercentComplete 0
+    Get-ChildItem -Path $LOCAL -Directory -Recurse -Filter "__pycache__" | 
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+    # Ensure remote directory structure exists
+    Write-Progress -Activity "Upload" -Status "Creating remote directories..." -PercentComplete 2
+    ssh $SSH_TARGET "mkdir -p ~/capacitated-vehicle-routing-problem/{backend/cvrp,config,instances,cluster,results,docs/report/imgs}"
+
+    # Files/directories to upload
+    $items = @(
+        "backend/cvrp",
+        "backend/pyproject.toml",
+        "backend/main.py",
+        "backend/run_experiments.py",
+        "backend/plot_convergence.py",
+        "backend/format_latex_table.py",
+        "backend/__init__.py",
+        "config",
+        "instances",
+        "cluster"
+    )
+
+    # Build flat list of (localPath, remotePath) pairs
+    $files = [System.Collections.Generic.List[object]]::new()
+    $dirsToClean = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($item in $items) {
+        $localPath = Join-Path $LOCAL $item
+        if (-not (Test-Path $localPath)) {
+            Write-Host "  [SKIP] $item (not found)" -ForegroundColor Yellow
+            continue
+        }
+        if (Test-Path $localPath -PathType Container) {
+            $parent = Split-Path $item
+            if (-not $parent) {
+                $dirsToClean.Add($item)
+            }
+            Get-ChildItem -Path $localPath -File -Recurse | ForEach-Object {
+                $relPath = $_.FullName.Substring($LOCAL.Length + 1) -replace '\\', '/'
+                $files.Add(@{ Local = $_.FullName; Remote = $relPath })
+            }
+        } else {
+            $files.Add(@{ Local = $localPath; Remote = $item })
+        }
+    }
+
+    # Clean remote top-level dirs before uploading
+    if ($dirsToClean.Count -gt 0) {
+        $rmCmd = ($dirsToClean | ForEach-Object { "rm -rf ~/capacitated-vehicle-routing-problem/$_" }) -join "; "
+        ssh $SSH_TARGET $rmCmd
+        $mkCmd = ($dirsToClean | ForEach-Object { "mkdir -p ~/capacitated-vehicle-routing-problem/$_" }) -join "; "
+        ssh $SSH_TARGET $mkCmd
+    }
+
+    # Ensure all remote subdirectories exist (batch)
+    $remoteDirs = $files | ForEach-Object {
+        $d = (Split-Path $_.Remote) -replace '\\', '/'
+        if ($d) { "~/capacitated-vehicle-routing-problem/$d" }
+    } | Sort-Object -Unique
+    if ($remoteDirs.Count -gt 0) {
+        $mkdirCmd = "mkdir -p " + ($remoteDirs -join " ")
+        ssh $SSH_TARGET $mkdirCmd
+    }
+
+    # Upload files one by one with granular progress
+    $total = $files.Count
+    for ($i = 0; $i -lt $total; $i++) {
+        $f = $files[$i]
+        $pct = [int](($i / $total) * 100)
+        $name = $f.Remote
+        Write-Progress -Activity "Upload" `
+            -Status "[$($i + 1)/$total] $name" `
+            -PercentComplete $pct
+
+        scp -q $f.Local "${REMOTE}/$($f.Remote)"
+    }
+
+    Write-Progress -Activity "Upload" -Completed
+    Write-Host "Upload complete ($total files)." -ForegroundColor Green
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Download functions
+# ══════════════════════════════════════════════════════════════════════════════
+function DownloadAll {
+    Write-Host "Downloading all outputs from cluster..." -ForegroundColor Cyan
+    DownloadResults
+    DownloadImgs
+    Write-Host "Download complete." -ForegroundColor Green
+}
+
+function DownloadResults {
+    Write-Host "  [1/2] results/results.json..." -ForegroundColor Gray
+    New-Item -ItemType Directory -Force -Path (Join-Path $LOCAL "results") | Out-Null
+    scp -q "${REMOTE}/results/results.json" (Join-Path $LOCAL "results/results.json")
+    Write-Host "  -> saved to results/results.json" -ForegroundColor Gray
+}
+
+function DownloadImgs {
+    Write-Host "  [2/2] docs/report/imgs/ (plots)..." -ForegroundColor Gray
+    $dest = Join-Path $LOCAL "docs/report/imgs"
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+    ssh $SSH_TARGET "cd ~/capacitated-vehicle-routing-problem && tar cf - docs/report/imgs" | tar xvf - -C "$LOCAL"
+    Write-Host "  -> saved to docs/report/imgs/" -ForegroundColor Gray
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Push/Pull single file or directory
+# ══════════════════════════════════════════════════════════════════════════════
+function Push {
+    if (-not $Path) {
+        Write-Host "Usage: .\sync_cluster.ps1 -Action push -Path <file-or-folder>" -ForegroundColor Red
+        return
+    }
+    $localPath = Join-Path $LOCAL $Path
+    if (-not (Test-Path $localPath)) {
+        Write-Host "Not found: $Path" -ForegroundColor Red
+        return
+    }
+    $remotePath = $Path -replace '\\', '/'
+    $remoteDir = ($remotePath | Split-Path) -replace '\\', '/'
+    if ($remoteDir) {
+        ssh $SSH_TARGET "mkdir -p ~/capacitated-vehicle-routing-problem/$remoteDir"
+    }
+    if (Test-Path $localPath -PathType Container) {
+        ssh $SSH_TARGET "mkdir -p ~/capacitated-vehicle-routing-problem/$remotePath"
+        scp -rq "$localPath/." "${REMOTE}/$remotePath/"
+    } else {
+        scp -q $localPath "${REMOTE}/$remotePath"
+    }
+    Write-Host "Pushed $Path -> cluster" -ForegroundColor Green
+}
+
+function Pull {
+    if (-not $Path) {
+        Write-Host "Usage: .\sync_cluster.ps1 -Action pull -Path <file-or-folder>" -ForegroundColor Red
+        return
+    }
+    $remotePath = $Path -replace '\\', '/'
+    $localPath = Join-Path $LOCAL $Path
+    $localDir = Split-Path $localPath
+    if ($localDir) {
+        New-Item -ItemType Directory -Force -Path $localDir | Out-Null
+    }
+    scp -rq "${REMOTE}/$remotePath" $localPath
+    Write-Host "Pulled $Path <- cluster" -ForegroundColor Green
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Dispatch
+# ══════════════════════════════════════════════════════════════════════════════
+switch ($Action) {
+    "upload"           { Upload }
+    "download"         { DownloadAll }
+    "download-results" { DownloadResults }
+    "download-imgs"    { DownloadImgs }
+    "push"             { Push }
+    "pull"             { Pull }
+}

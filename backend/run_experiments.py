@@ -2,12 +2,14 @@ import json
 import sys
 import time
 from pathlib import Path
+
 import yaml  # noqa: E402
 
 sys.path.insert(0, ".")
 
-from cvrp.instance import read_instance
 from cvrp.hga import HybridGeneticAlgorithm
+from cvrp.instance import read_instance
+
 
 def load_config() -> dict:
     config_path = Path(__file__).parent.parent / "config" / "config.yaml"
@@ -24,6 +26,7 @@ def load_config() -> dict:
         "tournament_size": 2,
         "elite_count": 2,
     }
+
 
 CONFIG = load_config()
 MAX_EVALS = CONFIG.get("max_evaluations", 350000)
@@ -67,8 +70,10 @@ def run_instance(instance_name: str) -> dict:
 
     print(f"\n{'='*70}")
     print(f"Instance: {instance_name}")
-    print(f"  Nodes: {instance.dimension}, Vehicles: {instance.num_vehicles}, "
-          f"Capacity: {instance.capacity}")
+    print(
+        f"  Nodes: {instance.dimension}, Vehicles: {instance.num_vehicles}, "
+        f"Capacity: {instance.capacity}"
+    )
     print(f"  Optimal: {instance.optimal_value}")
     print(f"{'='*70}")
 
@@ -82,6 +87,7 @@ def run_instance(instance_name: str) -> dict:
     start_time = time.time()
 
     from tqdm import tqdm
+
     run_bar = tqdm(range(RUNS), desc=f"  Runs on {instance_name}", unit="run")
     for run_idx in run_bar:
         run_start = time.time()
@@ -113,13 +119,17 @@ def run_instance(instance_name: str) -> dict:
 
         gap_str = ""
         if instance.optimal_value:
-            gap = ((solution.cost - instance.optimal_value) / instance.optimal_value) * 100
+            gap = (
+                (solution.cost - instance.optimal_value) / instance.optimal_value
+            ) * 100
             gap_str = f"gap={gap:.2f}%"
 
-        run_bar.write(f"    Run {run_idx + 1}/{RUNS}: cost={solution.cost:.2f} {gap_str} "
-                      f"vehicles={len(solution.routes)} "
-                      f"gens={solution.generations_to_best} "
-                      f"time={run_elapsed:.1f}s")
+        run_bar.write(
+            f"    Run {run_idx + 1}/{RUNS}: cost={solution.cost:.2f} {gap_str} "
+            f"vehicles={len(solution.routes)} "
+            f"gens={solution.generations_to_best} "
+            f"time={run_elapsed:.1f}s"
+        )
 
     elapsed = time.time() - start_time
     mean_cost = sum(all_costs) / len(all_costs)
@@ -173,6 +183,7 @@ def main():
         except Exception as e:
             print(f"\n[ERROR] {name}: {e}")
             import traceback
+
             traceback.print_exc()
             save_results(results)  # save what we have
 
@@ -180,14 +191,18 @@ def main():
     print(f"\n{'='*70}")
     print("FINAL SUMMARY")
     print(f"{'='*70}")
-    print(f"{'Instance':<15} {'Best':>10} {'Mean':>10} {'Std Dev':>10} {'Optimal':>10} {'Gap':>8} {'Time':>8}")
+    print(
+        f"{'Instance':<15} {'Best':>10} {'Mean':>10} {'Std Dev':>10} {'Optimal':>10} {'Gap':>8} {'Time':>8}"
+    )
     print("-" * 71)
     for name in INSTANCES:
         if name in results:
             r = results[name]
-            print(f"{r['name']:<15} {r['best']:>10.2f} {r['mean']:>10.2f} "
-                  f"{r['std_dev']:>10.2f} {r['optimal'] or 0:>10} "
-                  f"{r['gap']:>8} {r['execution_time']:>7.1f}s")
+            print(
+                f"{r['name']:<15} {r['best']:>10.2f} {r['mean']:>10.2f} "
+                f"{r['std_dev']:>10.2f} {r['optimal'] or 0:>10} "
+                f"{r['gap']:>8} {r['execution_time']:>7.1f}s"
+            )
     save_results(results)
     print(f"\nResults saved to {RESULTS_FILE}")
 
