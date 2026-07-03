@@ -114,7 +114,7 @@ pip-reset() {
 # Esempio:  run-exp                          # usa config/config.yaml
 #           run-exp config/custom.yaml        # usa config personalizzato
 run-exp() {
-    cd "$PROJ_DIR/backend" && export CONFIG="${1:-}" && sbatch ../cluster/run.sh
+    cd "$PROJ_DIR" && export CONFIG="${1:-}" && sbatch cluster/run.sh
 }
 
 # Genera grafici dai risultati

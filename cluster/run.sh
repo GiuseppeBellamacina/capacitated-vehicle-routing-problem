@@ -46,18 +46,6 @@ echo ""
 
 cd "$PROJ_DIR/backend"
 
-# Trova Python
-if command -v python3 &>/dev/null; then
-    PY=python3
-elif command -v python &>/dev/null; then
-    PY=python
-else
-    echo "❌ Python non trovato!"
-    exit 1
-fi
-
-echo "Python: $($PY --version 2>&1)"
-
 # ── 0. Configurazione ────────────────────────────────────────────────────────
 # Se CONFIG è stato passato (es. CONFIG=../config/custom.yaml sbatch ...),
 # sovrascrivi config/config.yaml per questa esecuzione.
@@ -88,7 +76,7 @@ echo ""
 
 START_EXP=$(date +%s)
 
-$PY run_experiments.py
+apptainer run /shared/sifs/latest.sif python3 run_experiments.py
 EXP_EXIT=$?
 
 END_EXP=$(date +%s)
@@ -108,7 +96,7 @@ echo "  [2/3] GRAFICI — plot_convergence.py"
 echo "════════════════════════════════════════════"
 echo ""
 
-$PY plot_convergence.py
+apptainer run /shared/sifs/latest.sif python3 plot_convergence.py
 PLOT_EXIT=$?
 
 if [ $PLOT_EXIT -ne 0 ]; then
@@ -126,7 +114,7 @@ echo "════════════════════════�
 echo ""
 
 TABLE_OUT="$PROJ_DIR/results/table.txt"
-$PY format_latex_table.py | tee "$TABLE_OUT"
+apptainer run /shared/sifs/latest.sif python3 format_latex_table.py | tee "$TABLE_OUT"
 TABLE_EXIT=${PIPESTATUS[0]}
 
 echo ""
