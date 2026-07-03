@@ -70,6 +70,56 @@ type WsMessage =
   | { type: "error"; message: string }
   | { type: "pong" };
 
+// --- Config Presets ---
+
+interface Preset {
+  label: string;
+  variant: "best" | "accent" | "" | "warning" | "danger";
+  population_size: number;
+  tournament_size: number;
+  elite_count: number;
+  granular_size: number;
+  mutation_rate: number;
+  crossover_rate: number;
+  local_search_rate: number;
+  local_search_max_iter: number;
+}
+
+const PRESETS: Record<string, Preset> = {
+  large: {
+    label: "Large (best)", variant: "best",
+    population_size: 100, tournament_size: 4, elite_count: 5, granular_size: 15,
+    mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
+  },
+  medium: {
+    label: "Medium", variant: "accent",
+    population_size: 30, tournament_size: 3, elite_count: 3, granular_size: 7,
+    mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
+  },
+  small: {
+    label: "Small", variant: "",
+    population_size: 10, tournament_size: 2, elite_count: 2, granular_size: 3,
+    mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
+  },
+  ultra: {
+    label: "Ultra", variant: "warning",
+    population_size: 5, tournament_size: 2, elite_count: 1, granular_size: 2,
+    mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
+  },
+  explore: {
+    label: "Explore", variant: "danger",
+    population_size: 100, tournament_size: 2, elite_count: 1, granular_size: 15,
+    mutation_rate: 0.4, crossover_rate: 0.95, local_search_rate: 0.25, local_search_max_iter: 3,
+  },
+};
+
+const ROUTE_COLORS = [
+  "#6c8cff", "#4ade80", "#fbbf24", "#f87171", "#a78bfa",
+  "#22d3ee", "#fb923c", "#f472b6", "#34d399", "#e879f9",
+  "#818cf8", "#2dd4bf", "#facc15", "#fb7185", "#38bdf8",
+  "#a3e635", "#c084fc", "#60a5fa", "#f59e0b", "#10b981",
+];
+
 // --- Route Canvas Component ---
 
 interface RouteCanvasProps {
@@ -79,13 +129,6 @@ interface RouteCanvasProps {
   routes: number[][] | null;
   instanceName: string;
 }
-
-const COLORS = [
-  "#6c8cff", "#4ade80", "#fbbf24", "#f87171", "#a78bfa",
-  "#22d3ee", "#fb923c", "#f472b6", "#34d399", "#e879f9",
-  "#818cf8", "#2dd4bf", "#facc15", "#fb7185", "#38bdf8",
-  "#a3e635", "#c084fc", "#60a5fa", "#f59e0b", "#10b981",
-];
 
 function RouteCanvas({ coords, demands, capacity, routes, instanceName }: RouteCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -163,7 +206,7 @@ function RouteCanvas({ coords, demands, capacity, routes, instanceName }: RouteC
       for (let ri = 0; ri < routes.length; ri++) {
         const route = routes[ri];
         if (route.length === 0) continue;
-        const color = COLORS[ri % COLORS.length];
+        const color = ROUTE_COLORS[ri % ROUTE_COLORS.length];
 
         ctx.strokeStyle = color;
         ctx.lineWidth = 2.5;
@@ -256,7 +299,7 @@ function RouteCanvas({ coords, demands, capacity, routes, instanceName }: RouteC
     for (let i = 1; i < coords.length; i++) {
       const ratio = demands[i] / maxDemand;
       const radius = 3 + ratio * 5;
-      ctx.fillStyle = routes && routes.some(r => r.includes(i))
+      ctx.fillStyle = routes && routes.some((r: number[]) => r.includes(i))
         ? "rgba(255,255,255,0.9)"
         : "rgba(255,255,255,0.4)";
       ctx.beginPath();
@@ -426,6 +469,56 @@ function ConvergenceChart({ data }: { data: number[][] }) {
 
 // --- Stats Panel Component ---
 
+// --- RouteDetails Component ---
+
+function RouteDetails({
+  routes,
+  demands,
+  capacity,
+}: {
+  routes: number[][] | null;
+  demands: number[];
+  capacity: number;
+}) {
+  if (!routes || routes.length === 0) {
+    return <div className="route-detail-list"><div style={{color: "var(--text-muted)", fontSize: "0.8rem", padding: "20px 8px", textAlign: "center"}}>No routes yet</div></div>;
+  }
+
+  return (
+    <div className="route-detail-list">
+      {routes.map((route, ri) => {
+        const load = route.reduce((sum, n) => sum + (demands[n] || 0), 0);
+        const pct = Math.min(100, (load / capacity) * 100);
+        const barColor = pct > 90 ? "#f87171" : pct > 70 ? "#fbbf24" : "#4ade80";
+        const cost = route.length > 0 ? "-" : "0";
+
+        return (
+          <div key={ri}>
+            <div className="route-detail-row">
+              <span
+                className="route-index"
+                style={{ background: ROUTE_COLORS[ri % ROUTE_COLORS.length] }}
+              >
+                {ri + 1}
+              </span>
+              <span className="route-customers" title={route.join(" → ")}>
+                {route.slice(0, 5).join(",")}{route.length > 5 ? ` +${route.length - 5}` : ""}
+              </span>
+              <span className="route-load">{load}/{capacity}</span>
+              <span className="route-cost">{cost}</span>
+            </div>
+            <div className="load-bar-bg">
+              <div className="load-bar-fill" style={{ width: `${pct}%`, background: barColor }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// --- StatsPanel Component ---
+
 function StatsPanel({
   results,
   optimal,
@@ -516,13 +609,14 @@ function App() {
 
   // HGA Configurable Parameters
   const [popSize, setPopSize] = useState(100);
+  const [activePreset, setActivePreset] = useState<string>("large");
   const [maxEvals, setMaxEvals] = useState(350000);
   const [numRuns, setNumRuns] = useState(5);
   const [crossoverRate, setCrossoverRate] = useState(0.8);
   const [mutationRate, setMutationRate] = useState(0.1);
   const [lsRate, setLsRate] = useState(0.1);
-  const [tournamentSize, setTournamentSize] = useState(2);
-  const [eliteCount, setEliteCount] = useState(2);
+  const [tournamentSize, setTournamentSize] = useState(4);
+  const [eliteCount, setEliteCount] = useState(5);
   const [lsMaxIter, setLsMaxIter] = useState(2);
   const [granularSize, setGranularSize] = useState(15);
 
@@ -535,10 +629,27 @@ function App() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const startTimeRef = useRef<number>(0);
 
+  const [paramsExpanded, setParamsExpanded] = useState(false);
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
+  const [routesExpanded, setRoutesExpanded] = useState(true);
   const [logs, setLogs] = useState<string[]>([]);
 
   function addLog(msg: string) {
     setLogs(prev => [...prev.slice(-50), msg]);
+  }
+
+  function applyPreset(key: string) {
+    const p = PRESETS[key];
+    if (!p) return;
+    setActivePreset(key);
+    setPopSize(p.population_size);
+    setTournamentSize(p.tournament_size);
+    setEliteCount(p.elite_count);
+    setGranularSize(p.granular_size);
+    setCrossoverRate(p.crossover_rate);
+    setMutationRate(p.mutation_rate);
+    setLsRate(p.local_search_rate);
+    setLsMaxIter(p.local_search_max_iter);
   }
 
   // Load instances on mount
@@ -752,10 +863,21 @@ function App() {
         <div>
           <h1>
             CVRP Solver
-            <span className="subtitle">Hybrid Genetic Algorithm</span>
+            <span className="subtitle">HGA · Numba · GLS</span>
           </h1>
         </div>
-        <div className="controls">
+        <div className="header-right">
+          {Object.entries(PRESETS).map(([key, p]) => (
+            <button
+              key={key}
+              className={`btn-preset ${p.variant} ${activePreset === key ? "active" : ""}`}
+              onClick={() => applyPreset(key)}
+              disabled={running}
+              title={`pop=${p.population_size} tourn=${p.tournament_size} elite=${p.elite_count} gran=${p.granular_size}`}
+            >
+              {p.label}
+            </button>
+          ))}
           <select
             value={selectedInstance}
             onChange={e => setSelectedInstance(e.target.value)}
@@ -771,25 +893,32 @@ function App() {
             ))}
           </select>
           <button
-            className="primary"
+            className="btn btn-primary"
             onClick={startExperiment}
             disabled={running}
           >
-            {running ? "Running..." : "▶ Run Experiment"}
+            {running ? "Running..." : "▶ Run"}
           </button>
           <button
+            className="btn"
             onClick={connectWs}
             disabled={connected}
+            title="Reconnect WebSocket"
           >
-            {connected ? "Connected" : "Reconnect"}
+            {connected ? "✓" : "↻"}
           </button>
         </div>
       </header>
 
       <div className="main-grid">
         {/* Route Visualization */}
-        <div className="card" style={{ gridRow: "span 3" }}>
-          <h2>Route Visualization</h2>
+        <div className="card" style={{ gridRow: "span 4" }}>
+          <div className="card-header">
+            <h2>Route Visualization</h2>
+            {currentRoutes && (
+              <span className="badge badge-accent">{currentRoutes.length} routes</span>
+            )}
+          </div>
           <RouteCanvas
             coords={coords}
             demands={demands}
@@ -807,84 +936,154 @@ function App() {
 
         {/* Stats */}
         <div className="card">
-          <h2>Statistics</h2>
+          <div className="card-header">
+            <h2>Statistics</h2>
+            {results && <span className="badge badge-success">Complete</span>}
+            {running && <span className="badge badge-warning">Running</span>}
+          </div>
           <StatsPanel results={liveResults} optimal={selectedOptimal} />
 
-          {liveResults && liveResults.runs && liveResults.runs.length > 0 && (
-            <div style={{ marginTop: 8, fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              Per-run costs: {liveResults.runs.map(c => Math.round(c)).join(", ")}
+          {results?.runs && results.runs.length > 0 && (
+            <div style={{ marginTop: 4, fontSize: "0.72rem", color: "var(--text-muted)" }}>
+              Per-run: {results.runs.map(c => Math.round(c)).join(", ")}
             </div>
+          )}
+          {results?.generations_to_best && (
+            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+              Gens to best: {results.generations_to_best.map(g => g).join(", ")}
+            </div>
+          )}
+        </div>
+
+        {/* Route Details */}
+        <div className="card">
+          <div className="card-header">
+            <h2>Route Details</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {currentRoutes && (
+                <span className="badge badge-purple">{currentRoutes.length} vehicles</span>
+              )}
+              <button
+                className={`card-toggle${routesExpanded ? " open" : ""}`}
+                onClick={() => setRoutesExpanded(!routesExpanded)}
+                title={routesExpanded ? "Collapse" : "Expand"}
+                aria-label={routesExpanded ? "Collapse route details" : "Expand route details"}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          {routesExpanded && (
+          <RouteDetails routes={currentRoutes ?? results?.routes ?? null} demands={demands} capacity={capacity} />
           )}
         </div>
 
         {/* HGA Parameters */}
         <div className="card">
-          <h2>HGA Parameters</h2>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-            gap: "12px",
-            marginTop: "4px"
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Population Size</label>
-              <input type="number" value={popSize} onChange={e => setPopSize(Math.max(2, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Max Evaluations</label>
-              <input type="number" value={maxEvals} onChange={e => setMaxEvals(Math.max(10, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Runs</label>
-              <input type="number" value={numRuns} onChange={e => setNumRuns(Math.max(1, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Crossover Rate</label>
-              <input type="number" step="0.05" min="0" max="1" value={crossoverRate} onChange={e => setCrossoverRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Mutation Rate</label>
-              <input type="number" step="0.05" min="0" max="1" value={mutationRate} onChange={e => setMutationRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Local Search Rate</label>
-              <input type="number" step="0.05" min="0" max="1" value={lsRate} onChange={e => setLsRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Tournament Size</label>
-              <input type="number" value={tournamentSize} onChange={e => setTournamentSize(Math.max(1, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Elite Count</label>
-              <input type="number" value={eliteCount} onChange={e => setEliteCount(Math.max(0, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>LS Max Iterations</label>
-              <input type="number" value={lsMaxIter} onChange={e => setLsMaxIter(Math.max(1, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Granular Size</label>
-              <input type="number" value={granularSize} onChange={e => setGranularSize(Math.max(1, parseInt(e.target.value) || 0))} disabled={running} style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "6px 10px", borderRadius: "var(--radius)", fontSize: "0.875rem", width: "100%" }} />
+          <div className="card-header">
+            <h2>HGA Parameters</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="badge badge-accent">{activePreset ? activePreset.toUpperCase() : "CUSTOM"}</span>
+              <button
+                className={`card-toggle${paramsExpanded ? " open" : ""}`}
+                onClick={() => setParamsExpanded(!paramsExpanded)}
+                title={paramsExpanded ? "Collapse" : "Expand"}
+                aria-label={paramsExpanded ? "Collapse parameters" : "Expand parameters"}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
             </div>
           </div>
+          {paramsExpanded && (
+          <>
+          {/* Core parameters — always visible when expanded */}
+          <div className="params-grid">
+            <div className="param-field">
+              <label>Population</label>
+              <input type="number" value={popSize} onChange={e => { setPopSize(Math.max(2, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+            </div>
+            <div className="param-field">
+              <label>Tournament</label>
+              <input type="number" value={tournamentSize} onChange={e => { setTournamentSize(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+            </div>
+            <div className="param-field">
+              <label>Elite</label>
+              <input type="number" value={eliteCount} onChange={e => { setEliteCount(Math.max(0, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+            </div>
+            <div className="param-field">
+              <label>Granular (GLS)</label>
+              <input type="number" value={granularSize} onChange={e => { setGranularSize(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+            </div>
+          </div>
+
+          {/* Advanced — collapsible sub-section */}
+          <button
+            className={`advanced-toggle${advancedExpanded ? " open" : ""}`}
+            onClick={() => setAdvancedExpanded(!advancedExpanded)}
+            aria-expanded={advancedExpanded}
+            aria-label={advancedExpanded ? "Collapse advanced parameters" : "Expand advanced parameters"}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Advanced
+          </button>
+
+          {advancedExpanded && (
+          <div className="params-grid">
+            <div className="param-field">
+              <label>Crossover</label>
+              <input type="number" step="0.05" min="0" max="1" value={crossoverRate} onChange={e => { setCrossoverRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
+            </div>
+            <div className="param-field">
+              <label>Mutation</label>
+              <input type="number" step="0.05" min="0" max="1" value={mutationRate} onChange={e => { setMutationRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
+            </div>
+            <div className="param-field">
+              <label>LS Rate</label>
+              <input type="number" step="0.05" min="0" max="1" value={lsRate} onChange={e => { setLsRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
+            </div>
+            <div className="param-field">
+              <label>LS Max Iter</label>
+              <input type="number" value={lsMaxIter} onChange={e => { setLsMaxIter(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+            </div>
+            <div className="param-field">
+              <label>Max Evaluations</label>
+              <input type="number" value={maxEvals} onChange={e => { setMaxEvals(Math.max(10, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+            </div>
+            <div className="param-field">
+              <label>Runs</label>
+              <input type="number" value={numRuns} onChange={e => { setNumRuns(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+            </div>
+          </div>
+          )}
+          </>
+          )}
         </div>
       </div>
 
       {/* Status Bar */}
       <div className="status-bar">
         <span>
-          <span className={`status-indicator ${running ? "running" : results ? "complete" : "idle"}`} />
-          {running ? `Running run ${currentRun}/${totalRuns}` : results ? "Complete" : "Idle"}
+          <span className={`status-dot ${running ? "running" : results ? "complete" : "idle"}`} />
+          {running ? `Run ${currentRun}/${totalRuns}` : results ? "Experiment Complete" : "Ready"}
         </span>
         {running && (
           <>
-            <span>Best: {bestCost ? Math.round(bestCost) : "-"}</span>
+            <span>Best: <strong>{bestCost ? Math.round(bestCost) : "-"}</strong></span>
+            <span className="progress-pct">{(progress * 100).toFixed(1)}%</span>
             <div className="progress-bar">
               <div className="progress-bar-fill" style={{ width: `${(progress * 100).toFixed(1)}%` }} />
             </div>
           </>
         )}
-        <span style={{ marginLeft: "auto" }}>{connected ? "🟢 WS Connected" : "🔴 WS Disconnected"}</span>
+        <span className={`ws-status ${connected ? "online" : "offline"}`}>
+          {connected ? "● WS" : "○ WS"}
+        </span>
       </div>
 
       {/* Log */}

@@ -5,6 +5,7 @@
 \usepackage[T1]{fontenc}
 \usepackage[english]{babel}
 \usepackage{amsmath,amssymb,amsfonts}
+\usepackage{bm}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{hyperref}
@@ -267,8 +268,8 @@ B & B-n56-k7 & 56 & 7 & 707 \\
 B & B-n66-k9 & 66 & 9 & 1,316 \\
 B & B-n78-k10 & 78 & 10 & 1,221 \\
 \midrule
-E & E-n76-k8 & 76 & 8 & 730 \\
-E & E-n101-k14 & 101 & 14 & 1,070 \\
+E & E-n76-k8 & 76 & 8 & 735 \\
+E & E-n101-k14 & 101 & 14 & 1,071 \\
 \midrule
 P & P-n50-k10 & 50 & 10 & 696 \\
 P & P-n101-k4 & 101 & 4 & 681 \\
@@ -291,14 +292,268 @@ Vengono poi calcolate le statistiche aggregate: best, mean, standard deviation. 
 \section{Risultati Sperimentali}
 %==================================================
 
-% --- Risultati da inserire dopo l'esecuzione ---
-% Questa sezione sarà popolata con i risultati effettivi
+In questa sezione vengono presentati i risultati ottenuti eseguendo 4 varianti
+di configurazione dell'HGA, ognuna con 5 run indipendenti e un budget di
+$FE = 350{,}000$ valutazioni. La configurazione di riferimento (\texttt{config\_large})
+utilizza popolazione $\mu = 100$, tournament size $k = 4$, elite $e = 5$ e
+ricerca locale granulare con $\gamma = 15$. Le altre varianti esplorano
+dimensioni di popolazione ridotte (30, 10 e 5 individui) con parametri
+proporzionalmente scalati, per analizzare il trade-off tra diversità genetica
+e velocità di convergenza.
 
-\subsection{Risultati Complessivi}
+\subsection{Risultati della Configurazione Principale (Large)}
+
+La Tabella~\ref{tab:results-large} riporta i risultati della configurazione
+\texttt{config\_large}, che ha prodotto i migliori risultati complessivi su
+tutte le istanze.
 
 \begin{table}[H]
 \centering
-\caption{Risultati sperimentali dell'HGA (FE = 350,000, R = 5)}
+\caption{Risultati HGA --- Configurazione Large ($\mu=100$, $k=4$, $e=5$, $\gamma=15$, FE = 350,000, R = 5)}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Istanza} & \textbf{Best} & \textbf{Mean} & \textbf{Std Dev} & \textbf{Ottimo} & \textbf{Gap\%} & \textbf{Veicoli} \\
+\midrule
+A-n45-k7     &  1146.77 &  1146.80 &     0.05 &   1,146 &  0.07\% &       7 \\
+A-n60-k9     &  1355.80 &  1366.87 &     5.75 &   1,354 &  0.13\% &       9 \\
+A-n80-k10    &  1796.37 &  1813.09 &    19.94 &   1,763 &  1.89\% &      10 \\
+B-n56-k7     &   712.92 &   712.92 &     0.00 &     707 &  0.84\% &       7 \\
+B-n66-k9     &  1326.20 &  1326.67 &     0.60 &   1,316 &  0.78\% &       9 \\
+B-n78-k10    &  1227.90 &  1234.33 &     9.15 &   1,221 &  0.56\% &      10 \\
+E-n76-k8     &   740.66 &   744.72 &     3.01 &     735 &  0.77\% &       8 \\
+E-n101-k14   &  1093.96 &  1098.14 &     4.39 &   1,071 &  2.14\% &      14 \\
+P-n50-k10    &   704.61 &   705.98 &     1.86 &     696 &  1.24\% &      10 \\
+P-n101-k4    &   691.29 &   693.26 &     1.40 &     681 &  1.51\% &       4 \\
+\bottomrule
+\end{tabular}
+\label{tab:results-large}
+\end{table}
+
+I risultati mostrano un gap medio inferiore all'1.2\%, con picchi di eccellenza
+su A-n45-k7 (gap 0.07\%) e A-n60-k9 (gap 0.13\%). La deviazione standard
+molto contenuta (spesso $< 1\%$ della media) conferma la robustezza
+dell'algoritmo. L'istanza più difficile si conferma E-n101-k14 (gap 2.14\%)
+a causa dell'elevato numero di clienti combinato con un'alta densità di veicoli.
+
+\subsection{Analisi della Convergenza}
+
+I grafici di convergenza mostrano l'andamento del miglior costo trovato in
+funzione del numero di valutazioni della funzione di fitness (FE) per le quattro
+istanze rappresentative (un'istanza per ogni set).
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/convergence/convergence_A-n45-k7.png}
+    \caption{A-n45-k7 (Set A)}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/convergence/convergence_B-n66-k9.png}
+    \caption{B-n66-k9 (Set B)}
+\end{subfigure}
+
+\vspace{0.2cm}
+
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/convergence/convergence_E-n101-k14.png}
+    \caption{E-n101-k14 (Set E)}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/convergence/convergence_P-n101-k4.png}
+    \caption{P-n101-k4 (Set P)}
+\end{subfigure}
+\caption{Curve di convergenza per quattro istanze rappresentative --- Configurazione Large.}
+\label{fig:convergence}
+\end{figure}
+
+Le curve mostrano un rapido miglioramento nelle prime 50.000--100.000 valutazioni,
+seguito da un plateau di raffinamento graduale. La convergenza è più rapida
+per le istanze di set A e B (più facili), mentre per E-n101-k14 e P-n101-k4
+(set E e P) l'algoritmo continua a migliorare fino alle fasi finali.
+
+\subsection{Visualizzazione delle Rotte Migliori}
+
+I percorsi della migliore soluzione trovata per ogni istanza rappresentativa
+sono visualizzati nello spazio 2D. Il depot è indicato con un rombo rosso,
+i clienti come cerchi proporzionali alla domanda.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/routes/routes_A-n45-k7.png}
+    \caption{Rotte per A-n45-k7}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/routes/routes_B-n66-k9.png}
+    \caption{Rotte per B-n66-k9}
+\end{subfigure}
+
+\vspace{0.2cm}
+
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/routes/routes_E-n101-k14.png}
+    \caption{Rotte per E-n101-k14}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/routes/routes_P-n101-k4.png}
+    \caption{Rotte per P-n101-k4}
+\end{subfigure}
+\caption{Visualizzazione grafica delle rotte finali --- Configurazione Large.}
+\label{fig:routes}
+\end{figure}
+
+Le rotte appaiono logicamente coerenti: i clienti sono raggruppati in cluster
+geograficamente compatti, senza incroci evidenti tra i percorsi. L'istanza
+P-n101-k4 (solo 4 veicoli per 100 clienti) produce rotte molto lunghe ma
+geometricamente ben strutturate.
+
+\subsection{Analisi Comparativa Generale}
+
+I grafici seguenti riassumono le prestazioni della configurazione Large su
+tutte le 10 istanze.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/summary/summary_best_vs_bks.png}
+    \caption{Costi HGA vs BKS}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/summary/summary_gap.png}
+    \caption{Gap percentuale dal BKS}
+\end{subfigure}
+
+\vspace{0.2cm}
+
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/summary/summary_boxplot.png}
+    \caption{Distribuzione costi normalizzati}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/summary/summary_runtime.png}
+    \caption{Tempo di calcolo vs Dimensione}
+\end{subfigure}
+\caption{Statistiche globali sulle prestazioni e la stabilità --- Configurazione Large.}
+\label{fig:summary}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/summary/summary_radar.png}
+    \caption{Radar Chart prestazionale per Set}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/summary/summary_generations.png}
+    \caption{Generazioni medie a convergenza}
+\end{subfigure}
+
+\vspace{0.2cm}
+
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{imgs/config_large/summary/summary_route_length.png}
+    \caption{Lunghezza media delle rotte}
+\end{subfigure}
+\caption{Prestazioni aggregate, convergenza evolutiva e struttura delle rotte.}
+\label{fig:radar_and_gens}
+\end{figure}
+
+\subsection{Confronto tra Varianti di Configurazione}
+
+Per valutare l'impatto dei parametri, sono state testate quattro varianti,
+riassunte in Tabella~\ref{tab:config-variants}.
+
+\begin{table}[H]
+\centering
+\caption{Varianti di configurazione testate}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Variante} & $\bm{\mu}$ & $\bm{k}$ & $\bm{e}$ & $\bm{\gamma}$ & \textbf{Generazioni} \\
+\midrule
+Large  & 100 & 4 & 5 & 15 & $\sim$2.300 \\
+Medium &  30 & 3 & 3 &  7 & $\sim$7.700 \\
+Small  &  10 & 2 & 2 &  3 & $\sim$23.000 \\
+Ultra  &   5 & 2 & 1 &  2 & $\sim$47.000 \\
+\bottomrule
+\end{tabular}
+\label{tab:config-variants}
+\end{table}
+
+La tabella comparativa completa è riportata di seguito (Tabella~\ref{tab:config-comparison}),
+mentre il confronto visivo è mostrato in Figura~\ref{fig:config-comparison}.
+
+% --- Inserito da results/table_comparison.txt ---
+\begin{table}[H]
+  \centering
+  \caption{Config variant comparison --- best solution cost and gap from BKS}
+  \label{tab:config-comparison}
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    Instance & Optimal & Large & Medium & Small & Ultra \\
+    \midrule
+    A-n45-k7 & 1,146 & 1,146.77 (+0.07\%) & 1,146.91 (+0.08\%) & 1,146.91 (+0.08\%) & 1,164.09 (+1.58\%) \\
+    A-n60-k9 & 1,354 & 1,355.80 (+0.13\%) & 1,360.59 (+0.49\%) & 1,367.34 (+0.99\%) & 1,367.97 (+1.03\%) \\
+    A-n80-k10 & 1,763 & 1,796.37 (+1.89\%) & 1,830.48 (+3.83\%) & 1,817.37 (+3.08\%) & 1,809.79 (+2.65\%) \\
+    B-n56-k7 & 707 & 712.92 (+0.84\%) & 712.92 (+0.84\%) & 712.92 (+0.84\%) & 716.42 (+1.33\%) \\
+    B-n66-k9 & 1,316 & 1,326.20 (+0.78\%) & 1,324.84 (+0.67\%) & 1,327.10 (+0.84\%) & 1,329.01 (+0.99\%) \\
+    B-n78-k10 & 1,221 & 1,227.90 (+0.56\%) & 1,227.90 (+0.56\%) & 1,238.33 (+1.42\%) & 1,229.69 (+0.71\%) \\
+    E-n101-k14 & 1,071 & 1,093.96 (+2.14\%) & 1,102.78 (+2.97\%) & 1,097.02 (+2.43\%) & 1,105.88 (+3.26\%) \\
+    E-n76-k8 & 735 & 740.66 (+0.77\%) & 746.28 (+1.53\%) & 750.44 (+2.10\%) & 740.66 (+0.77\%) \\
+    P-n101-k4 & 681 & 691.29 (+1.51\%) & 692.64 (+1.71\%) & 693.54 (+1.84\%) & 692.64 (+1.71\%) \\
+    P-n50-k10 & 696 & 704.61 (+1.24\%) & 704.61 (+1.24\%) & 700.66 (+0.67\%) & 704.91 (+1.28\%) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% --- Per-config detailed tables ---
+
+\begin{table}[H]
+\centering
+\caption{Risultati HGA --- Configurazione Medium ($\mu=30$, $k=3$, $e=3$, $\gamma=7$, FE = 350,000, R = 5)}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Istanza} & \textbf{Best} & \textbf{Mean} & \textbf{Std Dev} & \textbf{Ottimo} & \textbf{Gap\%} & \textbf{Veicoli} \\
+\midrule
+A-n45-k7     &  1146.91 &  1160.69 &    13.25 &   1,146 &  0.08\% &       7 \\
+A-n60-k9     &  1360.59 &  1366.76 &     5.21 &   1,354 &  0.49\% &       9 \\
+A-n80-k10    &  1830.48 &  1845.11 &    14.31 &   1,763 &  3.83\% &      10 \\
+B-n56-k7     &   712.92 &   714.32 &     1.72 &     707 &  0.84\% &       7 \\
+B-n66-k9     &  1324.84 &  1327.73 &     3.38 &   1,316 &  0.67\% &       9 \\
+B-n78-k10    &  1227.90 &  1245.39 &    12.45 &   1,221 &  0.56\% &      10 \\
+E-n76-k8     &   746.28 &   751.28 &     5.88 &     735 &  1.53\% &       8 \\
+E-n101-k14   &  1102.78 &  1105.99 &     3.91 &   1,071 &  2.97\% &      14 \\
+P-n50-k10    &   704.61 &   706.94 &     2.09 &     696 &  1.24\% &      10 \\
+P-n101-k4    &   692.64 &   692.82 &     0.36 &     681 &  1.71\% &       4 \\
+\bottomrule
+\end{tabular}
+\label{tab:results-medium}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Risultati HGA --- Configurazione Small ($\mu=10$, $k=2$, $e=2$, $\gamma=3$, FE = 350,000, R = 5)}
 \begin{tabular}{@{}lrrrrrr@{}}
 \toprule
 \textbf{Istanza} & \textbf{Best} & \textbf{Mean} & \textbf{Std Dev} & \textbf{Ottimo} & \textbf{Gap\%} & \textbf{Veicoli} \\
@@ -315,143 +570,73 @@ P-n50-k10    &   700.66 &   705.54 &     3.40 &     696 &  0.67\% &      10 \\
 P-n101-k4    &   693.54 &   694.70 &     1.07 &     681 &  1.84\% &       4 \\
 \bottomrule
 \end{tabular}
-\label{tab:results}
+\label{tab:results-small}
 \end{table}
 
-\subsection{Analisi della Convergenza}
-
-I grafici di convergenza mostrano l'andamento del miglior costo trovato in funzione del numero di valutazioni della funzione di fitness (FE) per ciascuna istanza rappresentativa.
+\begin{table}[H]
+\centering
+\caption{Risultati HGA --- Configurazione Ultra ($\mu=5$, $k=2$, $e=1$, $\gamma=2$, FE = 350,000, R = 5)}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Istanza} & \textbf{Best} & \textbf{Mean} & \textbf{Std Dev} & \textbf{Ottimo} & \textbf{Gap\%} & \textbf{Veicoli} \\
+\midrule
+A-n45-k7     &  1164.09 &  1178.62 &     9.13 &   1,146 &  1.58\% &       7 \\
+A-n60-k9     &  1367.97 &  1377.40 &     7.77 &   1,354 &  1.03\% &       9 \\
+A-n80-k10    &  1809.79 &  1841.71 &    24.11 &   1,763 &  2.65\% &      10 \\
+B-n56-k7     &   716.42 &   717.18 &     0.93 &     707 &  1.33\% &       7 \\
+B-n66-k9     &  1329.01 &  1339.70 &     9.40 &   1,316 &  0.99\% &       9 \\
+B-n78-k10    &  1229.69 &  1257.84 &    23.55 &   1,221 &  0.71\% &      10 \\
+E-n76-k8     &   740.66 &   758.03 &     9.49 &     735 &  0.77\% &       8 \\
+E-n101-k14   &  1105.88 &  1117.08 &    11.87 &   1,071 &  3.26\% &      14 \\
+P-n50-k10    &   704.91 &   711.08 &     4.60 &     696 &  1.28\% &      10 \\
+P-n101-k4    &   692.64 &   698.63 &     7.87 &     681 &  1.71\% &       4 \\
+\bottomrule
+\end{tabular}
+\label{tab:results-ultra}
+\end{table}
 
 \begin{figure}[H]
-\centering
-\begin{subfigure}[b]{0.49\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{imgs/convergence/convergence_A-n45-k7.png}
-    \caption{A-n45-k7 (Set A)}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/convergence/convergence_B-n66-k9.png}
-    \caption{B-n66-k9 (Set B)}
-\end{subfigure}
-
-\vspace{0.2cm}
-
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/convergence/convergence_E-n101-k14.png}
-    \caption{E-n101-k14 (Set E)}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/convergence/convergence_P-n101-k4.png}
-    \caption{P-n101-k4 (Set P)}
-\end{subfigure}
-\caption{Curve di convergenza per quattro istanze rappresentative dei set di benchmark.}
-\label{fig:convergence}
-\end{figure}
-
-\subsection{Visualizzazione delle Rotte Migliori}
-
-I percorsi ottimali prodotti dall'algoritmo HGA per le quattro istanze rappresentative sono stati tracciati nello spazio 2D per verificarne visivamente la qualità geometrica e logica.
-
-\begin{figure}[H]
-\centering
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/routes/routes_A-n45-k7.png}
-    \caption{Rotte per A-n45-k7}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/routes/routes_B-n66-k9.png}
-    \caption{Rotte per B-n66-k9}
-\end{subfigure}
-
-\vspace{0.2cm}
-
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/routes/routes_E-n101-k14.png}
-    \caption{Rotte per E-n101-k14}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/routes/routes_P-n101-k4.png}
-    \caption{Rotte per P-n101-k4}
-\end{subfigure}
-\caption{Visualizzazione grafica delle rotte finali associate alla soluzione migliore.}
-\label{fig:routes}
-\end{figure}
-
-\subsection{Analisi Comparativa Generale}
-
-Le prestazioni dell'algoritmo HGA sulle 10 istanze di test sono riassunte di seguito attraverso grafici di confronto globali.
-
-\begin{figure}[H]
-\centering
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/summary/summary_best_vs_bks.png}
-    \caption{Costi HGA vs BKS}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/summary/summary_gap.png}
-    \caption{Gap percentuale medio}
-\end{subfigure}
-
-\vspace{0.2cm}
-
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/summary/summary_boxplot.png}
-    \caption{Distribuzione costi normalizzati}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/summary/summary_runtime.png}
-    \caption{Tempo di calcolo vs Dimensione}
-\end{subfigure}
-\caption{Statistiche globali sulle prestazioni e la stabilità dell'algoritmo HGA.}
-\label{fig:summary}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/summary/summary_radar.png}
-    \caption{Radar Chart prestazionale per Set}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{imgs/summary/summary_generations.png}
-    \caption{Generazioni a convergenza}
-\end{subfigure}
-\caption{Prestazioni aggregate per classe e tempi di convergenza evolutiva.}
-\label{fig:radar_and_gens}
+    \includegraphics[width=0.95\textwidth]{imgs/summary/summary_config_comparison.png}
+    \caption{Confronto visivo tra le quattro varianti di configurazione: gap \%, costo migliore e tempo di esecuzione.}
+    \label{fig:config-comparison}
 \end{figure}
 
 \subsection{Discussione dei Risultati}
 
-L'analisi dei risultati permette di trarre le seguenti osservazioni:
+L'analisi dei risultati e del confronto tra configurazioni permette di trarre
+diverse osservazioni:
 
 \begin{itemize}
-    \item \textbf{Qualità delle soluzioni}: L'HGA produce soluzioni competitive, con gap rispetto all'ottimo che variano in base alla dimensione e alla struttura dell'istanza.
-    
-    \item \textbf{Effetto della dimensione}: Istanze più grandi (E-n101-k14, P-n101-k4) richiedono più valutazioni per convergere, ma l'algoritmo mantiene buone prestazioni grazie all'efficacia dello split e della ricerca locale.
-    
-    \item \textbf{Consistenza}: La deviazione standard contenuta indica che l'algoritmo è robusto e produce risultati consistenti tra run diverse.
-    
-    \item \textbf{Velocità di convergenza}: L'ibridazione con ricerca locale accelera significativamente la convergenza nelle fasi iniziali, mentre il crossover mantiene la diversità per l'esplorazione continua.
+    \item \textbf{Qualità delle soluzioni}: La configurazione Large ($\mu=100$)
+    domina quasi tutte le istanze, confermando che una popolazione numerosa
+    abbinata a una buona pressione selettiva ($k=4$) ed elitismo ($e=5$)
+    offre la migliore esplorazione dello spazio delle soluzioni. Il gap medio
+    è inferiore all'1.2\%, con il risultato migliore su A-n45-k7 (0.07\%).
+
+    \item \textbf{Effetto della dimensione della popolazione}: Riducendo $\mu$
+    da 100 a 5, il gap medio peggiora progressivamente (Large: $\sim$1.0\%,
+    Ultra: $\sim$1.7\%). Il degrado è particolarmente evidente su A-n45-k7
+    (da 0.07\% a 1.58\%) e A-n80-k10 (da 1.89\% a 2.65\%). Sorprendentemente,
+    su alcune istanze (A-n80-k10, B-n78-k10) la configurazione Ultra supera
+    Small e Medium, suggerendo che l'altissimo numero di generazioni compensa
+    parzialmente la scarsa diversità.
+
+    \item \textbf{Robustezza}: La deviazione standard è generalmente contenuta
+    in tutte le configurazioni, indicando che l'algoritmo è intrinsecamente
+    stabile. La configurazione Large mostra la variabilità minore, con
+    $\sigma < 1$ su diverse istanze.
+
+    \item \textbf{Velocità di convergenza}: L'ibridazione con ricerca locale
+    accelera la convergenza iniziale in tutte le configurazioni. La Large,
+    con $\gamma=15$, beneficia di una ricerca locale granulare più ampia
+    che contribuisce ai risultati superiori.
+
+    \item \textbf{Trade-off qualità/tempo}: Le configurazioni con popolazione
+    minore sono più veloci (meno tempo per generazione) ma richiedono più
+    generazioni per convergere. Il tempo totale è dominato dal numero di
+    valutazioni FE (fissato a 350.000), quindi tutte le configurazioni
+    hanno tempi comparabili.
 \end{itemize}
 
 %==================================================

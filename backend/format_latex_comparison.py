@@ -34,6 +34,7 @@ def _short_label(config_name: str) -> str:
         "config_medium": "Medium",
         "config_large": "Large",
         "config_ultra": "Ultra",
+        "config_explore": "Explore",
     }
     return labels.get(config_name, config_name)
 
@@ -106,11 +107,22 @@ def format_comparison_table(output_file: Path | None = None):
     lines.append(r"    \bottomrule")
     lines.append(r"  \end{tabular}")
 
-    # Legend row
+    # Legend row with actual config parameters
     legend_parts = []
     for cfg_name in config_names:
         label = _short_label(cfg_name)
-        legend_parts.append(f"{label}: pop=X, tournament=Y, elite=Z, granular=W")
+        # Try to read params from the YAML config file
+        cfg_file = Path("../config") / f"{cfg_name}.yaml"
+        params = {}
+        if cfg_file.exists():
+            import yaml
+            with open(cfg_file) as f:
+                params = yaml.safe_load(f)
+        pop = params.get("population_size", "?")
+        tourn = params.get("tournament_size", "?")
+        elite = params.get("elite_count", "?")
+        gran = params.get("granular_size", "?")
+        legend_parts.append(f"{label}: pop={pop}, tournament={tourn}, elite={elite}, granular={gran}")
     lines.append(r"  \vspace{4pt}")
     lines.append(r"  \caption*{\footnotesize " + "; ".join(legend_parts) + r"}")
 

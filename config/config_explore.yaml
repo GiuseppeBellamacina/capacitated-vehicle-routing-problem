@@ -1,0 +1,29 @@
+# ==============================================================================
+# CONFIGURAZIONE HGA — Variante "Explore" (alta mutazione, esplorazione spinta)
+# ==============================================================================
+# Strategia: come Large (pop=100) ma con mutation 4x, crossover quasi sempre,
+# local search aggressiva (25% + 3 iter), elitismo ridotto al minimo.
+# Obiettivo: massima diversità genetica, testare se l'esplorazione spinta
+# compensa la minore pressione selettiva su paesaggi di fitness complessi.
+#
+# Differenze rispetto a Large:
+#   mutation_rate:      0.1 → 0.4  (4x)
+#   crossover_rate:     0.8 → 0.95 (quasi sempre)
+#   local_search_rate:  0.1 → 0.25 (2.5x)
+#   ls_max_iter:        2   → 3    (più profonda)
+#   tournament_size:    4   → 2    (meno pressione selettiva)
+#   elite_count:        5   → 1    (minima conservazione)
+
+population_size: 100
+max_evaluations: 350000
+runs: 5
+crossover_rate: 0.95
+mutation_rate: 0.4
+local_search_rate: 0.25
+tournament_size: 2
+elite_count: 1
+local_search_max_iter: 3
+granular_size: 15
+
+output_dir: results/config_explore
+imgs_dir: docs/report/imgs/config_explore

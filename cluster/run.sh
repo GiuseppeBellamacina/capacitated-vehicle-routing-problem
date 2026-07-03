@@ -2,22 +2,24 @@
 # ============================================================================
 # SLURM batch script — CVRP Solver (HGA)
 #
-# Esegue in sequenza per OGNI variante di configurazione:
+# Esegue in sequenza per ogni variante di configurazione:
 #   1. Esperimenti (run_experiments.py) su tutte le 10 istanze
-#   2. Grafici (plot_convergence.py) — 10 tipi di grafico
+#   2. Grafici (plot_convergence.py)
 #   3. Tabella LaTeX (format_latex_table.py)
 #
-# Ogni config YAML contiene già i path di output (output_dir, imgs_dir).
-# Nessun env var, nessun backup/restore — pulito e semplice.
-#
 # Uso:
-#   sbatch cluster/run.sh
+#   sbatch cluster/run.sh                   # tutti i config
+#   sbatch cluster/run.sh config_explore    # solo config_explore
+#   sbatch cluster/run.sh config_large      # solo config_large
+#
+#   Con sbatch, l'argomento va DOPO lo script:
+#     sbatch cluster/run.sh config_explore
+#   In locale (test):
+#     bash cluster/run.sh config_explore
 # ============================================================================
 
-# ┌────────────────────────────────────────────────────────┐
-# │  CONFIGURA QUI — modifica account/partition/qos/email  │
-# └────────────────────────────────────────────────────────┘
-#SBATCH --job-name=train
+#Job name: il nome del config se passato, altrimenti "cvrp-all"
+#SBATCH --job-name=cvrp
 #SBATCH --account=thesis-course
 #SBATCH --partition=thesis-course
 #SBATCH --qos=gpu-xlarge
@@ -26,14 +28,20 @@
 #SBATCH --gres=gpu:1 --gres=shard:22528
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=bellamacina50@gmail.com
-#SBATCH --output=logs/slurm-train-%j.log
+#SBATCH --output=logs/slurm-cvrp-%j.log
 
 set -e -o pipefail
 
 PROJ_DIR="$HOME/capacitated-vehicle-routing-problem"
+CONFIG_ARG="${1:-}"   # nome config passato come argomento (opzionale)
 
 echo "============================================"
-echo "  CVRP Solver (HGA) — Multi-Config Pipeline"
+echo "  CVRP Solver (HGA) — Pipeline"
+if [ -n "$CONFIG_ARG" ]; then
+    echo "  Config:    ${CONFIG_ARG} (single)"
+else
+    echo "  Config:    ALL (auto-discovery)"
+fi
 echo "  Job ID:    ${SLURM_JOB_ID}"
 echo "  Node:      $(hostname)"
 echo "  Date:      $(date)"
@@ -42,14 +50,24 @@ echo ""
 
 cd "$PROJ_DIR/backend"
 
-# ── Configs da eseguire in sequenza (auto-discovery) ──────────────────────────
-# Scansiona config/config_*.yaml in ordine alfabetico — nuove config
-# vengono automaticamente incluse senza modificare questo script.
-readarray -t CONFIGS < <(ls -1 "$PROJ_DIR"/config/config_*.yaml 2>/dev/null | sort)
-
-if [ ${#CONFIGS[@]} -eq 0 ]; then
-    echo "Errore: nessun file config/config_*.yaml trovato."
-    exit 1
+# ── Configs da eseguire ──────────────────────────────────────────────────────
+if [ -n "$CONFIG_ARG" ]; then
+    # Modalità single-config: passa il nome (es. config_explore)
+    CFG_FILE="$PROJ_DIR/config/${CONFIG_ARG}.yaml"
+    if [ ! -f "$CFG_FILE" ]; then
+        echo "Errore: file '$CFG_FILE' non trovato."
+        echo "Config disponibili:"
+        ls -1 "$PROJ_DIR"/config/config_*.yaml 2>/dev/null | sed 's/.*\///; s/\.yaml//' || true
+        exit 1
+    fi
+    CONFIGS=("$CFG_FILE")
+else
+    # Modalità auto-discovery: tutti i config/config_*.yaml
+    readarray -t CONFIGS < <(ls -1 "$PROJ_DIR"/config/config_*.yaml 2>/dev/null | sort)
+    if [ ${#CONFIGS[@]} -eq 0 ]; then
+        echo "Errore: nessun file config/config_*.yaml trovato."
+        exit 1
+    fi
 fi
 
 TOTAL=${#CONFIGS[@]}
@@ -135,36 +153,37 @@ for CFG_FILE in "${CONFIGS[@]}"; do
     echo ""
 done
 
-# ── Config comparison chart (generato una sola volta con tutti i dati) ────────
-echo ""
-echo "╔══════════════════════════════════════════════════════╗"
-echo "║  CONFIG COMPARISON — summary_config_comparison.png"  ║
-echo "╚══════════════════════════════════════════════════════╝"
-echo ""
+# ── Config comparison & tabella comparativa (solo se multi-config) ────────────
+if [ -z "$CONFIG_ARG" ]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  CONFIG COMPARISON — summary_config_comparison.png"  ║
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
 
-$APPT plot_convergence.py --comparison-only
-CMP_EXIT=$?
+    $APPT plot_convergence.py --comparison-only
+    CMP_EXIT=$?
 
-if [ $CMP_EXIT -ne 0 ]; then
-    echo "  ⚠️  Config comparison fallito (potrebbero servire più config completate)."
-else
-    echo "  ✅ Config comparison → docs/report/imgs/summary/summary_config_comparison.png"
-fi
+    if [ $CMP_EXIT -ne 0 ]; then
+        echo "  ⚠️  Config comparison fallito (potrebbero servire più config completate)."
+    else
+        echo "  ✅ Config comparison → docs/report/imgs/summary/summary_config_comparison.png"
+    fi
 
-# ── Tabella LaTeX comparativa (una sola con tutte le config affiancate) ────────
-echo ""
-echo "╔════════════════════════════════════════════╗"
-echo "║  TABLE COMPARISON — table_comparison.txt"  ║
-echo "╚════════════════════════════════════════════╝"
-echo ""
+    echo ""
+    echo "╔════════════════════════════════════════════╗"
+    echo "║  TABLE COMPARISON — table_comparison.txt"  ║
+    echo "╚════════════════════════════════════════════╝"
+    echo ""
 
-TABLE_COMP="$PROJ_DIR/results/table_comparison.txt"
-$APPT format_latex_comparison.py --output ../results/table_comparison.txt 2>&1
-echo ""
-if [ -f "$TABLE_COMP" ]; then
-    echo "  ✅ Tabella comparativa → results/table_comparison.txt"
-else
-    echo "  ⚠️  Tabella comparativa fallita."
+    TABLE_COMP="$PROJ_DIR/results/table_comparison.txt"
+    $APPT format_latex_comparison.py --output ../results/table_comparison.txt 2>&1
+    echo ""
+    if [ -f "$TABLE_COMP" ]; then
+        echo "  ✅ Tabella comparativa → results/table_comparison.txt"
+    else
+        echo "  ⚠️  Tabella comparativa fallita."
+    fi
 fi
 
 # ── Riepilogo ─────────────────────────────────────────────────────────────────
@@ -175,8 +194,10 @@ echo "  $(date)"
 echo "============================================"
 echo ""
 echo "Output generati:"
-echo "  docs/report/imgs/summary/summary_config_comparison.png"
-echo "  results/table_comparison.txt"
+if [ -z "$CONFIG_ARG" ]; then
+    echo "  docs/report/imgs/summary/summary_config_comparison.png"
+    echo "  results/table_comparison.txt"
+fi
 for CFG_FILE in "${CONFIGS[@]}"; do
     CFG=$(basename "$CFG_FILE" .yaml)
     OUTPUT_DIR=$(grep '^output_dir:' "$CFG_FILE" | awk '{print $2}')

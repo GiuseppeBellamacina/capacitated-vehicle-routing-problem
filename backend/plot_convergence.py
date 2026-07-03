@@ -68,12 +68,14 @@ CONFIG_COLORS = {
     "config_medium": "#EE7733",
     "config_large": "#009988",
     "config_ultra": "#CC3311",
+    "config_explore": "#EE3377",
 }
 CONFIG_LABELS = {
     "config_small": "Small (pop=10)",
     "config_medium": "Medium (pop=30)",
     "config_large": "Large (pop=100)",
     "config_ultra": "Ultra (pop=5)",
+    "config_explore": "Explore (mut=0.4)",
 }
 
 
