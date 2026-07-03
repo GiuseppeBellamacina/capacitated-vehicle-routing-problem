@@ -550,7 +550,7 @@ function StatsPanel({
           <div className="stat-value">-</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Time (s)</div>
+          <div className="stat-label">Time</div>
           <div className="stat-value">-</div>
         </div>
       </div>
@@ -581,15 +581,90 @@ function StatsPanel({
         <div className="stat-label">Gap %</div>
         <div className="stat-value">{gap}%</div>
       </div>
-      <div className="stat-card">
-        <div className="stat-label">Time (s)</div>
-        <div className="stat-value">{results.execution_time.toFixed(1)}</div>
+      <div className="stat-card">        <div className="stat-label">Time</div>
+          <div className="stat-value">{formatETA(results.execution_time)}</div>
       </div>
     </div>
   );
 }
 
+// --- Collapsible Component ---
+
+function Collapsible({ expanded, children }: { expanded: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`collapsible${expanded ? " open" : ""}`}>
+      <div className="collapsible-inner">{children}</div>
+    </div>
+  );
+}
+
+// --- Toggle Button Component ---
+
+function ToggleButton({ expanded, onToggle, label }: { expanded: boolean; onToggle: () => void; label: string }) {
+  return (
+    <button
+      className={`card-toggle${expanded ? " open" : ""}`}
+      onClick={onToggle}
+      title={expanded ? "Collapse" : "Expand"}
+      aria-label={expanded ? `Collapse ${label}` : `Expand ${label}`}
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </button>
+  );
+}
+
+// --- Run Bars Component ---
+
+function RunBars({ totalRuns, currentRun, completedRuns, progress }: { totalRuns: number; currentRun: number; completedRuns: number[]; progress: number }) {
+  return (
+    <div className="run-bars">
+      {Array.from({ length: totalRuns }, (_, i) => {
+        const idx = i + 1;
+        const isCompleted = idx < currentRun || completedRuns.length >= idx;
+        const isCurrent = idx === currentRun;
+        const pct = isCompleted ? 100 : isCurrent ? progress * 100 : 0;
+        return (
+          <div key={i} className="run-bar">
+            <div className={`run-bar-track${isCurrent ? " active" : ""}`}>
+              <div
+                className={`run-bar-fill${isCompleted ? " done" : ""}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // --- Main App ---
+
+function formatETA(seconds: number): string {
+  if (seconds <= 0 || !isFinite(seconds)) return "--";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function useStoredBool(key: string, fallback: boolean): [boolean, (v: boolean) => void] {
+  const [value, setValue] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored !== null ? stored === "true" : fallback;
+    } catch { return fallback; }
+  });
+
+  const setStored = (v: boolean) => {
+    setValue(v);
+    try { localStorage.setItem(key, String(v)); } catch { /* ignore */ }
+  };
+
+  return [value, setStored];
+}
 
 function App() {
   const [instances, setInstances] = useState<InstanceSet[]>([]);
@@ -628,15 +703,24 @@ function App() {
   const [completedRuns, setCompletedRuns] = useState<number[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const startTimeRef = useRef<number>(0);
+  const lastUpdateRef = useRef<number>(0);
 
-  const [paramsExpanded, setParamsExpanded] = useState(false);
-  const [advancedExpanded, setAdvancedExpanded] = useState(false);
-  const [routesExpanded, setRoutesExpanded] = useState(true);
+  const [staleSeconds, setStaleSeconds] = useState(0);
+  const [paramsExpanded, setParamsExpanded] = useStoredBool("ui.paramsExpanded", false);
+  const [advancedExpanded, setAdvancedExpanded] = useStoredBool("ui.advancedExpanded", false);
+  const [routesExpanded, setRoutesExpanded] = useStoredBool("ui.routesExpanded", true);
+  const [statsExpanded, setStatsExpanded] = useStoredBool("ui.statsExpanded", true);
+  const [convExpanded, setConvExpanded] = useStoredBool("ui.convExpanded", true);
   const [logs, setLogs] = useState<string[]>([]);
 
   function addLog(msg: string) {
     setLogs(prev => [...prev.slice(-50), msg]);
   }
+
+  const eta =
+    running && progress > 0.01
+      ? (elapsedTime * (1 - progress)) / progress
+      : 0;
 
   function applyPreset(key: string) {
     const p = PRESETS[key];
@@ -708,13 +792,16 @@ function App() {
 
       switch (msg.type) {
         case "run_start":
+          lastUpdateRef.current = Date.now();
           setCurrentRun(msg.run);
           setTotalRuns(msg.total_runs);
-          setCurrentRoutes(null); // Clear routes for the new run
+          setProgress(0);
+          setCurrentRoutes(null);
           setLiveConvergence(prev => [...prev, []]);
           addLog(`▶ Run ${msg.run}/${msg.total_runs} - ${msg.instance}`);
           break;
         case "progress":
+          lastUpdateRef.current = Date.now();
           setProgress(msg.evaluations / maxEvals);
           setBestCost(msg.best_cost);
           setElapsedTime((Date.now() - startTimeRef.current) / 1000);
@@ -731,6 +818,7 @@ function App() {
           });
           break;
         case "run_complete":
+          lastUpdateRef.current = Date.now();
           setCurrentRoutes(msg.routes);
           setElapsedTime((Date.now() - startTimeRef.current) / 1000);
           setCompletedRuns(prev => [...prev, msg.cost]);
@@ -808,6 +896,8 @@ function App() {
     startTimeRef.current = Date.now();
     setProgress(0);
     setLogs([]);
+    lastUpdateRef.current = Date.now();
+    setStaleSeconds(0);
     addLog(`Starting experiment on ${selectedInstance}...`);
 
     ws.send(
@@ -832,6 +922,21 @@ function App() {
   useEffect(() => {
     connectWs();
   }, []);
+
+  // Update stale counter every second during running
+  const wasRunningRef = useRef(false);
+  useEffect(() => {
+    if (!running) {
+      if (wasRunningRef.current) setStaleSeconds(0);
+      wasRunningRef.current = false;
+      return;
+    }
+    wasRunningRef.current = true;
+    const id = setInterval(() => {
+      setStaleSeconds(Math.floor((Date.now() - lastUpdateRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [running]);
 
   const selectedOptimal = instances
     .flatMap(s => s.instances)
@@ -930,17 +1035,26 @@ function App() {
 
         {/* Convergence Chart */}
         <div className="card">
-          <h2>Convergence</h2>
+          <div className="card-header">
+            <h2>Convergence</h2>
+            <ToggleButton expanded={convExpanded} onToggle={() => setConvExpanded(!convExpanded)} label="convergence" />
+          </div>
+          <Collapsible expanded={convExpanded}>
           <ConvergenceChart data={liveConvergence.length > 0 ? liveConvergence : (results?.convergence ?? [])} />
+          </Collapsible>
         </div>
 
         {/* Stats */}
         <div className="card">
           <div className="card-header">
             <h2>Statistics</h2>
-            {results && <span className="badge badge-success">Complete</span>}
-            {running && <span className="badge badge-warning">Running</span>}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {results && <span className="badge badge-success">Complete</span>}
+              {running && <span className="badge badge-warning">Running</span>}
+              <ToggleButton expanded={statsExpanded} onToggle={() => setStatsExpanded(!statsExpanded)} label="statistics" />
+            </div>
           </div>
+          <Collapsible expanded={statsExpanded}>
           <StatsPanel results={liveResults} optimal={selectedOptimal} />
 
           {results?.runs && results.runs.length > 0 && (
@@ -953,6 +1067,7 @@ function App() {
               Gens to best: {results.generations_to_best.map(g => g).join(", ")}
             </div>
           )}
+          </Collapsible>
         </div>
 
         {/* Route Details */}
@@ -963,21 +1078,12 @@ function App() {
               {currentRoutes && (
                 <span className="badge badge-purple">{currentRoutes.length} vehicles</span>
               )}
-              <button
-                className={`card-toggle${routesExpanded ? " open" : ""}`}
-                onClick={() => setRoutesExpanded(!routesExpanded)}
-                title={routesExpanded ? "Collapse" : "Expand"}
-                aria-label={routesExpanded ? "Collapse route details" : "Expand route details"}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
+              <ToggleButton expanded={routesExpanded} onToggle={() => setRoutesExpanded(!routesExpanded)} label="route details" />
             </div>
           </div>
-          {routesExpanded && (
+          <Collapsible expanded={routesExpanded}>
           <RouteDetails routes={currentRoutes ?? results?.routes ?? null} demands={demands} capacity={capacity} />
-          )}
+          </Collapsible>
         </div>
 
         {/* HGA Parameters */}
@@ -986,20 +1092,10 @@ function App() {
             <h2>HGA Parameters</h2>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span className="badge badge-accent">{activePreset ? activePreset.toUpperCase() : "CUSTOM"}</span>
-              <button
-                className={`card-toggle${paramsExpanded ? " open" : ""}`}
-                onClick={() => setParamsExpanded(!paramsExpanded)}
-                title={paramsExpanded ? "Collapse" : "Expand"}
-                aria-label={paramsExpanded ? "Collapse parameters" : "Expand parameters"}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
+              <ToggleButton expanded={paramsExpanded} onToggle={() => setParamsExpanded(!paramsExpanded)} label="parameters" />
             </div>
           </div>
-          {paramsExpanded && (
-          <>
+          <Collapsible expanded={paramsExpanded}>
           {/* Core parameters — always visible when expanded */}
           <div className="params-grid">
             <div className="param-field">
@@ -1061,8 +1157,7 @@ function App() {
             </div>
           </div>
           )}
-          </>
-          )}
+          </Collapsible>
         </div>
       </div>
 
@@ -1079,6 +1174,11 @@ function App() {
             <div className="progress-bar">
               <div className="progress-bar-fill" style={{ width: `${(progress * 100).toFixed(1)}%` }} />
             </div>
+            <RunBars totalRuns={totalRuns} currentRun={currentRun} completedRuns={completedRuns} progress={progress} />
+            <span className={`stale${staleSeconds > 5 ? " blink" : ""}`}>
+              {staleSeconds > 0 ? `${staleSeconds}s ago` : "live"}
+            </span>
+            <span className="eta">Elapsed: {formatETA(elapsedTime)} · ~{formatETA(eta)} left</span>
           </>
         )}
         <span className={`ws-status ${connected ? "online" : "offline"}`}>

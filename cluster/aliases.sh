@@ -122,7 +122,7 @@ plots() {
 
 # Formatta tabella LaTeX
 latex-table() {
-    cd "$PROJ_DIR/backend" && python3 format_latex_table.py
+    cd "$PROJ_DIR/backend" && python3 format_latex.py table
 }
 
 # Scarica risultati dal cluster

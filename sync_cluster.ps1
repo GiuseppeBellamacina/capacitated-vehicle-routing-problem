@@ -13,6 +13,15 @@ $REMOTE  = "${CLUSTER_USER}@${CLUSTER_HOST}:~/capacitated-vehicle-routing-proble
 $SSH_TARGET = "${CLUSTER_USER}@${CLUSTER_HOST}"
 $LOCAL   = $PSScriptRoot
 
+# Helper function per convertire CRLF in LF sul cluster
+function Fix-RemoteLineEndings {
+    param([string]$TargetDir = "~/capacitated-vehicle-routing-problem")
+    Write-Host "  -> Converting DOS line breaks to UNIX (CRLF -> LF)..." -ForegroundColor Gray
+    # Cerca script bash, python e configurazioni per rimuovere il \r (carriage return)
+    $cmd = "find $TargetDir -type f \( -name '*.sh' -o -name '*.py' -o -name '*.toml' \) -exec sed -i 's/\r$//' {} +"
+    ssh $SSH_TARGET $cmd
+}
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Upload: sends project to cluster via SCP
 # ══════════════════════════════════════════════════════════════════════════════
@@ -35,8 +44,7 @@ function Upload {
         "backend/main.py",
         "backend/run_experiments.py",
         "backend/plot_convergence.py",
-        "backend/format_latex_table.py",
-        "backend/format_latex_comparison.py",
+        "backend/format_latex.py",
         "config",
         "instances",
         "cluster"
@@ -98,6 +106,10 @@ function Upload {
     }
 
     Write-Progress -Activity "Upload" -Completed
+    
+    # Fix CRLF issues per SLURM
+    Fix-RemoteLineEndings
+
     Write-Host "Upload complete ($total files)." -ForegroundColor Green
 }
 
@@ -150,6 +162,14 @@ function Push {
     } else {
         scp -q $localPath "${REMOTE}/$remotePath"
     }
+    
+    # Fix CRLF per SLURM anche per i push singoli (per sicurezza formatta tutto o il file specifico)
+    if (Test-Path $localPath -PathType Container) {
+        Fix-RemoteLineEndings -TargetDir "~/capacitated-vehicle-routing-problem/$remotePath"
+    } elseif ($remotePath -match "\.(sh|py|toml)$") {
+        ssh $SSH_TARGET "sed -i 's/\r$//' ~/capacitated-vehicle-routing-problem/$remotePath"
+    }
+
     Write-Host "Pushed $Path -> cluster" -ForegroundColor Green
 }
 

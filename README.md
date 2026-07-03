@@ -20,7 +20,7 @@ capacitated-vehicle-routing-problem/
 │   ├── pyproject.toml        # Dipendenze e metadati del progetto (gestito con uv)
 │   ├── run_experiments.py    # Script di esecuzione del protocollo sperimentale completo
 │   ├── plot_convergence.py   # Script di generazione grafici (convergenza + rotte)
-│   ├── format_latex_table.py # Script di formattazione tabella LaTeX
+│   ├── format_latex.py       # Script unificato di formattazione tabelle LaTeX (--table / --comparison)
 │   ├── test_quick.py         # Test rapido di esecuzione dell'algoritmo
 │   └── test_minimal.py       # Test unitario e di compilazione Numba
 ├── frontend/                 # Dashboard interattiva React

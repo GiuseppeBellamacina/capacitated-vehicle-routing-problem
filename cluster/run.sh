@@ -5,7 +5,7 @@
 # Esegue in sequenza per ogni variante di configurazione:
 #   1. Esperimenti (run_experiments.py) su tutte le 10 istanze
 #   2. Grafici (plot_convergence.py)
-#   3. Tabella LaTeX (format_latex_table.py)
+#   3. Tabella LaTeX (format_latex.py)
 #
 # Uso:
 #   sbatch cluster/run.sh                   # tutti i config
@@ -141,11 +141,11 @@ for CFG_FILE in "${CONFIGS[@]}"; do
     # ── 3. Tabella LaTeX ─────────────────────────────────────────────────
     echo ""
     echo "  ════════════════════════════════════════"
-    echo "  [${NUM}c] TABELLA — format_latex_table.py"
+    echo "  [${NUM}c] TABELLA — format_latex.py"
     echo "  ════════════════════════════════════════"
     echo ""
 
-    $APPT format_latex_table.py --results "../${OUTPUT_DIR}/results.json" | tee "$TABLE_FILE"
+    $APPT format_latex.py table --results "../${OUTPUT_DIR}/results.json" | tee "$TABLE_FILE"
     TABLE_EXIT=${PIPESTATUS[0]}
 
     echo ""
@@ -177,7 +177,7 @@ if [ -z "$CONFIG_ARG" ]; then
     echo ""
 
     TABLE_COMP="$PROJ_DIR/results/table_comparison.txt"
-    $APPT format_latex_comparison.py --output ../results/table_comparison.txt 2>&1
+    $APPT format_latex.py comparison --output ../results/table_comparison.txt 2>&1
     echo ""
     if [ -f "$TABLE_COMP" ]; then
         echo "  ✅ Tabella comparativa → results/table_comparison.txt"

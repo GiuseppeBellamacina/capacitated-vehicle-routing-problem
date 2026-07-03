@@ -236,7 +236,7 @@ select:hover, .btn:hover {
 
 .route-canvas-container {
   flex: 1;
-  min-height: 420px;
+  min-height: 0;
   position: relative;
   border-radius: var(--radius);
   overflow: hidden;
@@ -248,7 +248,7 @@ select:hover, .btn:hover {
 
 .convergence-container {
   flex: 1;
-  min-height: 260px;
+  min-height: 0;
   position: relative;
 }
 
@@ -299,7 +299,8 @@ select:hover, .btn:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 200px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -355,6 +356,20 @@ select:hover, .btn:hover {
   height: 100%;
   border-radius: 2px;
   transition: width 0.6s ease;
+}
+
+/* ── Collapsible Transition ────────────────── */
+
+.collapsible {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+}
+
+.collapsible.open {
+  max-height: 5000px;
+  opacity: 1;
 }
 
 /* ── Collapsible Card Toggle ───────────────── */
@@ -516,6 +531,41 @@ select:hover, .btn:hover {
   position: relative;
 }
 
+/* ── Run Bars (per-run mini progress) ───────── */
+
+.run-bars {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.run-bar {
+  flex: 1;
+  max-width: 40px;
+}
+
+.run-bar-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.run-bar-track.active {
+  background: rgba(108, 140, 255, 0.15);
+}
+
+.run-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.run-bar-fill.done {
+  background: var(--success);
+}
+
 .progress-bar-fill::after {
   content: "";
   position: absolute; right: 0; top: 0; bottom: 0;
@@ -529,6 +579,33 @@ select:hover, .btn:hover {
   font-variant-numeric: tabular-nums;
   min-width: 42px;
   text-align: right;
+}
+
+.eta {
+  font-weight: 600;
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.stale {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.7rem;
+  color: var(--success);
+  white-space: nowrap;
+  min-width: 50px;
+}
+
+.stale.blink {
+  color: var(--warning);
+  animation: stale-blink 0.8s ease-in-out infinite;
+}
+
+@keyframes stale-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
 }
 
 .ws-status {

@@ -1,14 +1,13 @@
-"""Generate a single LaTeX table comparing all config variants side-by-side.
-
-Discovers ``results/config_*/results.json`` automatically and produces
-a table with columns: Instance | Optimal | Config₁ Best (Gap%) | Config₂ Best (Gap%) | ...
+"""Format experimental results as LaTeX tables.
 
 Usage:
-    python format_latex_comparison.py
-    python format_latex_comparison.py --output results/table_comparison.txt
+    python format_latex.py --table --results ../results/config_small/results.json
+    python format_latex.py --comparison
+    python format_latex.py --comparison --output results/table_comparison.txt
 """
 
 import argparse
+import json
 from pathlib import Path
 
 from cvrp.instance import discover_instances
@@ -17,14 +16,80 @@ from cvrp.utils import discover_config_results
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="LaTeX cross-config comparison table for CVRP results",
+        description="LaTeX table formatter for CVRP results"
     )
-    parser.add_argument(
+    sub = parser.add_subparsers(dest="command", help="Output mode")
+
+    # --table subcommand
+    table_parser = sub.add_parser("table", help="Single-config results table")
+    table_parser.add_argument(
+        "--results",
+        default="../results/results.json",
+        help="Path to results.json (default: ../results/results.json)",
+    )
+
+    # --comparison subcommand
+    comp_parser = sub.add_parser("comparison", help="Cross-config comparison table")
+    comp_parser.add_argument(
         "--output",
         default="",
         help="Save to file instead of stdout (default: print to stdout)",
     )
+
     return parser.parse_args()
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# TABLE mode
+# ────────────────────────────────────────────────────────────────────────────
+
+
+def format_table(results_file: Path):
+    if not results_file.exists():
+        print(f"Error: {results_file} not found.")
+        return
+
+    with open(results_file) as f:
+        results = json.load(f)
+
+    instances_order = discover_instances()
+
+    print("\n" + "=" * 80)
+    print("LATEX TABLE ROWS (Copy and paste into report.tex):")
+    print("=" * 80)
+
+    for name in instances_order:
+        if name not in results:
+            print(f"{name:<12} & TBD & TBD & TBD & Optimal & TBD & Vehicles \\\\")
+            continue
+
+        r = results[name]
+        best = r["best"]
+        mean = r["mean"]
+        std_dev = r["std_dev"]
+        optimal = r["optimal"]
+
+        if optimal:
+            gap = ((best - optimal) / optimal) * 100
+            gap_str = f"{gap:.2f}\\%"
+        else:
+            gap_str = "-"
+
+        vehicles_used = len(r.get("routes", []))
+        opt_str = f"{optimal:,}" if optimal is not None else "-"
+
+        row = (
+            f"{name:<12} & {best:>8.2f} & {mean:>8.2f} & {std_dev:>8.2f} "
+            f"& {opt_str:>7} & {gap_str:>7} & {vehicles_used:>7} \\\\"
+        )
+        print(row)
+
+    print("=" * 80)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# COMPARISON mode
+# ────────────────────────────────────────────────────────────────────────────
 
 
 def _short_label(config_name: str) -> str:
@@ -142,7 +207,19 @@ def format_comparison_table(output_file: Path | None = None):
         print("=" * 100)
 
 
+# ────────────────────────────────────────────────────────────────────────────
+# Main
+# ────────────────────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     args = parse_args()
-    out_path = Path(args.output) if args.output else None
-    format_comparison_table(out_path)
+
+    if args.command == "table":
+        format_table(Path(args.results))
+    elif args.command == "comparison":
+        out_path = Path(args.output) if args.output else None
+        format_comparison_table(out_path)
+    else:
+        print("Error: you must specify a subcommand.")
+        print("Example:  python format_latex.py table --results ../results/results.json")
+        print("Example:  python format_latex.py comparison")
