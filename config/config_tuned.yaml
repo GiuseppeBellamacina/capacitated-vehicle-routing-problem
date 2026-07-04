@@ -1,0 +1,13 @@
+population_size: 81
+max_evaluations: 350000
+runs: 5
+crossover_rate: 0.67498185224881
+mutation_rate: 0.23571458630703332
+local_search_rate: 0.2589837207732728
+tournament_size: 4
+elite_count: 4
+local_search_max_iter: 10
+granular_size: 25
+
+output_dir: results/config_tuned
+imgs_dir: docs/report/imgs/config_tuned
