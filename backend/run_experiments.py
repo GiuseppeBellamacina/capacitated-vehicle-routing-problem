@@ -33,8 +33,18 @@ def load_config(config_path: str) -> dict:
     if not path.exists():
         print(f"Error: config file not found: {path}")
         sys.exit(1)
-    with open(path) as f:
-        return yaml.safe_load(f)
+    try:
+        with open(path) as f:
+            config = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        print(f"Error: invalid YAML in config file '{path}':\n{e}")
+        sys.exit(1)
+    if not isinstance(config, dict):
+        print(
+            f"Error: config file '{path}' is empty or does not contain a YAML mapping."
+        )
+        sys.exit(1)
+    return config
 
 
 def load_results(results_file: Path) -> dict:

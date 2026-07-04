@@ -110,17 +110,17 @@ for CFG_FILE in "${CONFIGS[@]}"; do
 
     START_EXP=$(date +%s)
 
-    $APPT run_experiments.py --config "../$CFG_PATH"
-    EXP_EXIT=$?
+    EXP_EXIT=0
+    $APPT run_experiments.py --config "../$CFG_PATH" || EXP_EXIT=$?
 
     END_EXP=$(date +%s)
     echo ""
-    echo "  ✅ Esperimenti ${CFG} completati in $((END_EXP - START_EXP))s"
 
     if [ $EXP_EXIT -ne 0 ]; then
-        echo "  ❌ Esperimenti ${CFG} falliti — interrompo."
+        echo "  ❌ Esperimenti ${CFG} falliti (exit code $EXP_EXIT) — interrompo."
         exit $EXP_EXIT
     fi
+    echo "  ✅ Esperimenti ${CFG} completati in $((END_EXP - START_EXP))s"
 
     # ── 2. Grafici ───────────────────────────────────────────────────────
     echo ""
@@ -129,8 +129,8 @@ for CFG_FILE in "${CONFIGS[@]}"; do
     echo "  ════════════════════════════════════════"
     echo ""
 
-    $APPT plot_convergence.py --results "../${OUTPUT_DIR}/results.json" --imgs "../${IMGS_DIR}"
-    PLOT_EXIT=$?
+    PLOT_EXIT=0
+    $APPT plot_convergence.py --results "../${OUTPUT_DIR}/results.json" --imgs "../${IMGS_DIR}" || PLOT_EXIT=$?
 
     if [ $PLOT_EXIT -ne 0 ]; then
         echo "  ⚠️  Grafici ${CFG} falliti — continuo."
@@ -145,11 +145,15 @@ for CFG_FILE in "${CONFIGS[@]}"; do
     echo "  ════════════════════════════════════════"
     echo ""
 
-    $APPT format_latex.py table --results "../${OUTPUT_DIR}/results.json" | tee "$TABLE_FILE"
-    TABLE_EXIT=${PIPESTATUS[0]}
+    TABLE_EXIT=0
+    $APPT format_latex.py table --results "../${OUTPUT_DIR}/results.json" 2>&1 | tee "$TABLE_FILE" || TABLE_EXIT=${PIPESTATUS[0]}
 
     echo ""
-    echo "  📄 Tabella ${CFG}: ${OUTPUT_DIR}/table.txt"
+    if [ $TABLE_EXIT -ne 0 ]; then
+        echo "  ⚠️  Tabella ${CFG} fallita."
+    else
+        echo "  📄 Tabella ${CFG}: ${OUTPUT_DIR}/table.txt"
+    fi
     echo ""
 done
 
@@ -161,8 +165,8 @@ if [ -z "$CONFIG_ARG" ]; then
     echo "╚══════════════════════════════════════════════════════╝"
     echo ""
 
-    $APPT plot_convergence.py --comparison-only
-    CMP_EXIT=$?
+    CMP_EXIT=0
+    $APPT plot_convergence.py --comparison-only || CMP_EXIT=$?
 
     if [ $CMP_EXIT -ne 0 ]; then
         echo "  ⚠️  Config comparison fallito (potrebbero servire più config completate)."
@@ -177,9 +181,10 @@ if [ -z "$CONFIG_ARG" ]; then
     echo ""
 
     TABLE_COMP="$PROJ_DIR/results/table_comparison.txt"
-    $APPT format_latex.py comparison --output ../results/table_comparison.txt 2>&1
+    FMT_EXIT=0
+    $APPT format_latex.py comparison --output ../results/table_comparison.txt 2>&1 || FMT_EXIT=$?
     echo ""
-    if [ -f "$TABLE_COMP" ]; then
+    if [ $FMT_EXIT -ne 0 ] || [ ! -f "$TABLE_COMP" ]; then
         echo "  ✅ Tabella comparativa → results/table_comparison.txt"
     else
         echo "  ⚠️  Tabella comparativa fallita."

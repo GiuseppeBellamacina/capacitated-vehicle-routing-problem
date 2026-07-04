@@ -164,6 +164,11 @@ function RouteCanvas({ coords, demands, capacity, routes, instanceName }: RouteC
     const h = rect.height;
     const padding = 60;
 
+    // ── Square viewport (uniform aspect ratio) ─────────────────────────
+    const size = Math.min(w, h);
+    const ox = (w - size) / 2;
+    const oy = (h - size) / 2;
+
     // Clear
     ctx.fillStyle = "#0a0c14";
     ctx.fillRect(0, 0, w, h);
@@ -172,7 +177,7 @@ function RouteCanvas({ coords, demands, capacity, routes, instanceName }: RouteC
       ctx.fillStyle = "#8b8fa3";
       ctx.font = "14px Inter, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("No data", w / 2, h / 2);
+      ctx.fillText("No data", ox + size / 2, oy + size / 2);
       return;
     }
 
@@ -185,29 +190,35 @@ function RouteCanvas({ coords, demands, capacity, routes, instanceName }: RouteC
       if (c.y > maxY) maxY = c.y;
     }
 
-    const scaleX = (w - 2 * padding) / (maxX - minX || 1);
-    const scaleY = (h - 2 * padding) / (maxY - minY || 1);
+    const dataW = maxX - minX || 1;
+    const dataH = maxY - minY || 1;
+    const drawSize = size - 2 * padding;
+    const scale = Math.min(drawSize / dataW, drawSize / dataH);
+    const dataOffX = (drawSize - dataW * scale) / 2;
+    const dataOffY = (drawSize - dataH * scale) / 2;
 
     function tx(x: number) {
-      return padding + (x - minX) * scaleX;
+      return ox + padding + dataOffX + (x - minX) * scale;
     }
     function ty(y: number) {
-      return h - padding - (y - minY) * scaleY; // flip Y
+      return oy + padding + dataOffY + (maxY - y) * scale;
     }
 
-    // Draw grid
+    // Draw grid (within square)
     ctx.strokeStyle = "rgba(255,255,255,0.03)";
     ctx.lineWidth = 1;
+    const gx0 = ox + padding; const gy0 = oy + padding;
+    const gSize = size - 2 * padding;
     for (let i = 0; i <= 10; i++) {
-      const gx = padding + (i / 10) * (w - 2 * padding);
+      const gx = gx0 + (i / 10) * gSize;
       ctx.beginPath();
-      ctx.moveTo(gx, padding);
-      ctx.lineTo(gx, h - padding);
+      ctx.moveTo(gx, gy0);
+      ctx.lineTo(gx, gy0 + gSize);
       ctx.stroke();
-      const gy = padding + (i / 10) * (h - 2 * padding);
+      const gy = gy0 + (i / 10) * gSize;
       ctx.beginPath();
-      ctx.moveTo(padding, gy);
-      ctx.lineTo(w - padding, gy);
+      ctx.moveTo(gx0, gy);
+      ctx.lineTo(gx0 + gSize, gy);
       ctx.stroke();
     }
 

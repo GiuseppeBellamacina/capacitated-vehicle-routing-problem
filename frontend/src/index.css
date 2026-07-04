@@ -47,6 +47,37 @@
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
+/* ── Custom dark scrollbars for scrollable panels ─────────── */
+
+.route-detail-list,
+.collapsible-inner {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-focus) var(--bg);
+}
+
+.route-detail-list::-webkit-scrollbar,
+.collapsible-inner::-webkit-scrollbar {
+  width: 8px;
+}
+
+.route-detail-list::-webkit-scrollbar-track,
+.collapsible-inner::-webkit-scrollbar-track {
+  background: var(--bg);
+  border-radius: 4px;
+}
+
+.route-detail-list::-webkit-scrollbar-thumb,
+.collapsible-inner::-webkit-scrollbar-thumb {
+  background: var(--border-focus);
+  border-radius: 4px;
+  border: 2px solid var(--bg);
+}
+
+.route-detail-list::-webkit-scrollbar-thumb:hover,
+.collapsible-inner::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
 /* ── Base ──────────────────────────────────── */
 
 body {
@@ -59,7 +90,8 @@ body {
 }
 
 #root {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -189,9 +221,12 @@ select:hover, .btn:hover {
 .main-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: 2.5fr 1fr 1fr 1.2fr;
   gap: 16px;
   padding: 16px 28px 24px;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 1100px) {
@@ -208,6 +243,7 @@ select:hover, .btn:hover {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow: hidden;
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 
@@ -257,9 +293,10 @@ select:hover, .btn:hover {
 .route-canvas-container canvas { width: 100%; height: 100%; display: block; }
 
 .convergence-container {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   position: relative;
+  overflow: hidden;
 }
 
 .convergence-container canvas { width: 100%; height: 100%; display: block; }
@@ -309,7 +346,7 @@ select:hover, .btn:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
 }
@@ -371,6 +408,8 @@ select:hover, .btn:hover {
 /* ── Collapsible Transition ────────────────── */
 
 .collapsible {
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   max-height: 0;
   opacity: 0;
@@ -380,6 +419,14 @@ select:hover, .btn:hover {
 .collapsible.open {
   max-height: 5000px;
   opacity: 1;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.collapsible-inner {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* ── Collapsible Card Toggle ───────────────── */

@@ -65,9 +65,10 @@ if [ -n "$OUTPUT_CONFIG" ]; then
 fi
 echo ""
 
-# ── Crea directory output ────────────────────────────────────────────────────
-mkdir -p "$PROJ_DIR/results/tuning"
+# ── Crea directory output (prima che Python le crei) ─────────────────────────
 mkdir -p "$PROJ_DIR/logs"
+mkdir -p "$PROJ_DIR/config"
+mkdir -p "$PROJ_DIR/results/tuning"
 
 APPT="apptainer run /shared/sifs/latest.sif python3"
 
@@ -79,28 +80,39 @@ echo ""
 
 START_TUNE=$(date +%s)
 
-$APPT tune_parameters.py --config "../config/${CONFIG_NAME}.yaml"
-TUNE_EXIT=$?
+TUNE_EXIT=0
+$APPT tune_parameters.py --config "../config/${CONFIG_NAME}.yaml" || TUNE_EXIT=$?
 
 END_TUNE=$(date +%s)
 ELAPSED=$((END_TUNE - START_TUNE))
 
 echo ""
-echo "  ⏱️  Tuning completato in ${ELAPSED}s ($((ELAPSED / 60)) min)"
 
 if [ $TUNE_EXIT -ne 0 ]; then
     echo "  ❌ Tuning fallito (exit code $TUNE_EXIT)."
     exit $TUNE_EXIT
 fi
 
+echo "  ⏱️  Tuning completato in ${ELAPSED}s ($((ELAPSED / 60)) min)"
+
 # ── Verifica output ──────────────────────────────────────────────────────────
 if [ -n "$OUTPUT_CONFIG" ] && [ -f "$PROJ_DIR/$OUTPUT_CONFIG" ]; then
     echo "  ✅ Best config salvato → ${OUTPUT_CONFIG}"
+
+    # Copia anche in results/tuning/ per centralizzare gli output
+    mkdir -p "$PROJ_DIR/results/tuning"
+    cp "$PROJ_DIR/$OUTPUT_CONFIG" "$PROJ_DIR/results/tuning/$(basename "$OUTPUT_CONFIG")"
+    echo "  📋 Copia locale  → results/tuning/$(basename "$OUTPUT_CONFIG")"
+
     echo ""
     echo "  Per eseguire esperimenti con questo config:"
     echo "    sbatch cluster/run.sh $(basename "$OUTPUT_CONFIG" .yaml)"
 elif [ -n "$OUTPUT_CONFIG" ]; then
     echo "  ⚠️  Output config '${OUTPUT_CONFIG}' non trovato — il tuning potrebbe non aver completato alcun trial."
+fi
+
+if [ -f "$PROJ_DIR/results/tuning/tuning_summary.json" ]; then
+    echo "  ✅ Tuning summary → results/tuning/tuning_summary.json"
 fi
 
 echo ""

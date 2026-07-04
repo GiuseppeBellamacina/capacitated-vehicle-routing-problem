@@ -129,7 +129,7 @@ graph TD
 ```
 
 ### Parametri e Protocollo Sperimentale (da Consegna)
-L'algoritmo è governato da una serie di parametri chiave, definiti in `config/config.yaml`, che regolano il bilanciamento tra esplorazione e sfruttamento:
+L'algoritmo è governato da una serie di parametri chiave, definiti nei file di configurazione YAML nella directory `config/`. Il progetto offre **7 varianti predefinite** (da Ultra a Tuned), ciascuna con parametri ottimizzati per un diverso profilo qualità/velocità. La variante **Tuned** è il risultato del tuning automatico con Optuna (vedi Sezione 9).
 
 *   **Dimensione della popolazione ($N = 100$)**: Definisce il numero di soluzioni candidate mantenute contemporaneamente in memoria. Una popolazione più ampia favorisce la diversità genetica ma aumenta il tempo di calcolo.
 *   **Valutazioni massime ($FE = 350.000$)**: Rappresenta il budget computazionale totale concesso all'HGA per ogni singola esecuzione. Il conteggio delle valutazioni viene incrementato a ogni invocazione del metodo di Split.
@@ -137,9 +137,21 @@ L'algoritmo è governato da una serie di parametri chiave, definiti in `config/c
 *   **Tasso di Crossover ($p_c = 0.8$)**: La probabilità con cui due genitori estratti dalla popolazione si incrociano (tramite Order Crossover - OX) per generare figli. Favorisce la trasmissione delle buone caratteristiche dei genitori alle generazioni successive.
 *   **Tasso di Mutazione ($p_m = 0.1$)**: La probabilità che un figlio subisca una mutazione casuale. Introduce elementi di disturbo che prevengono la convergenza prematura su ottimi locali sub-ottimali.
 *   **Tasso di Ricerca Locale ($p_{ls} = 0.1$)**: La probabilità che un figlio venga ottimizzato tramite i 4 operatori di ricerca locale. È il tasso di ibridazione che definisce l'algoritmo memetico.
-*   **Dimensione del torneo ($k = 2$)**: Il numero di candidati estratti a caso per sfidarsi nella selezione dei genitori. Controlla la pressione selettiva dell'algoritmo genetico.
-*   **Quota di Elitismo ($e = 2$)**: Il numero di individui migliori della generazione precedente che vengono copiati inalterati nella generazione successiva, garantendo la non-decrescenza della fitness ottima trovata.
+*   **Dimensione del torneo ($k = 3$)**: Il numero di candidati estratti a caso per sfidarsi nella selezione dei genitori. Controlla la pressione selettiva dell'algoritmo genetico.
+*   **Quota di Elitismo ($e = 5$)**: Il numero di individui migliori della generazione precedente che vengono copiati inalterati nella generazione successiva, garantendo la non-decrescenza della fitness ottima trovata.
 *   **Iterazioni massime di Ricerca Locale ($\text{max\_iter} = 2$)**: Limita la scansione degli operatori di ricerca locale inter-route (Relocate ed Exchange) per evitare cicli infiniti ed ottimizzazioni infinitesimali, massimizzando il rendimento globale del tempo CPU.
+
+### 2.1 Varianti di Configurazione (Config Presets)
+
+| Config | Pop | Tourn | Elite | Granular | Crossover | Mutation | LS Rate | LS Iter | Profilo |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Ultra** | 5 | 2 | 1 | 2 | 0.80 | 0.10 | 0.10 | 2 | Velocissimo, bassa qualità |
+| **Small** | 10 | 2 | 2 | 3 | 0.80 | 0.10 | 0.10 | 2 | Rapido, qualità accettabile |
+| **Medium** | 30 | 3 | 3 | 7 | 0.80 | 0.10 | 0.10 | 2 | Equilibrio velocità/qualità |
+| **Balanced** | 60 | 3 | 4 | 12 | 0.85 | 0.10 | 0.10 | 2 | Bilanciato, buona qualità |
+| **Large** | 100 | 4 | 5 | 15 | 0.80 | 0.10 | 0.10 | 2 | Migliore qualità, più lento |
+| **Explore** | 100 | 2 | 1 | 15 | 0.95 | 0.40 | 0.25 | 3 | Esplorazione aggressiva |
+| **Tuned** | — | — | — | — | — | — | — | — | Ottimizzato da Optuna (§9) |
 
 ---
 
@@ -302,3 +314,115 @@ Grafico a barre colorato per set con barre d'errore (±1 deviazione standard) ch
 Grafico a barre colorato per set che mostra il numero medio di clienti per veicolo (lunghezza della rotta) nella migliore soluzione trovata per ogni istanza. Il valore è annotato sopra ogni barra. Una lunghezza media più bassa indica rotte più corte e potenzialmente più bilanciate; una più alta riflette istanze con pochi veicoli rispetto al numero di clienti, che costringono a rotte più lunghe.
 
 Tutti i grafici vengono salvati nelle rispettive sottocartelle di `docs/report/imgs/` in formato PNG a 300 DPI con sfondo bianco, pronti per l'inclusione nella relazione LaTeX.
+
+---
+
+## 9. Tuning Automatico degli Iperparametri con Optuna
+
+Il tuning automatico utilizza **Optuna** con un campionatore **TPE (Tree-structured Parzen Estimator)** multivariato per esplorare lo spazio degli iperparametri HGA in modo efficiente.
+
+### 9.1 Spazio di Ricerca
+
+| Parametro | Range | Scala | Tipo |
+| :--- | :--- | :--- | :--- |
+| `population_size` | 20–150 | — | int |
+| `tournament_size` | 2–5 | — | int |
+| `crossover_rate` | 0.5–1.0 | lineare | float |
+| `mutation_rate` | 0.01–0.5 | log | float |
+| `local_search_rate` | 0.01–0.3 | log | float |
+| `elite_count` | 0–pop/10 | — | int |
+| `local_search_max_iter` | 1–10 | — | int |
+| `granular_size` | 10–40 | — | int |
+
+### 9.2 Protocollo di Tuning
+
+1. **Warm-start**: il primo trial utilizza i parametri default (`pop=100, tourn=4, elite=5, gran=15`) come baseline nota.
+2. **Valutazione per trial**: ogni combinazione di parametri viene testata su **4 istanze rappresentative** (una per set: A-n45-k7, B-n66-k9, E-n101-k14, P-n101-k4), con **2 run indipendenti per istanza** e **100.000 valutazioni per run** (ridotte rispetto alle 350K della produzione).
+3. **Score**: la metrica da minimizzare è il **gap percentuale medio** rispetto ai BKS sulle istanze di tuning.
+4. **Persistenza**: lo studio viene salvato in un database SQLite (`results/tuning/tuning.db`), consentendo di riprendere sessioni interrotte.
+
+### 9.3 Output del Tuning
+
+Al termine del tuning, vengono generati:
+- **`config/config_tuned.yaml`**: il miglior config HGA trovato, pronto per `run_experiments.py`
+- **`results/tuning/tuning_summary.json`**: riepilogo con best params, best gap, top-5 trial, metadati dello studio
+- **`results/tuning/tuning.db`**: database Optuna persistente per analisi successive
+
+### 9.4 Configurazione del Tuning
+
+Il file `config/config_optuna.yaml` controlla i metaparametri del processo:
+
+```yaml
+study_name: hga_tuning       # Nome dello studio
+trials: 100                  # Numero di trial
+budget: 100000               # Valutazioni per trial
+runs_per_trial: 2            # Run per istanza per trial
+instances: []                # Istanze ([] = automatico)
+storage: sqlite:///results/tuning/tuning.db
+warm_start: true             # Primo trial = parametri default
+output_config: config/config_tuned.yaml
+output_dir: results/tuning
+```
+
+---
+
+## 10. Esecuzione su Cluster HPC (SLURM + Apptainer)
+
+Il progetto include script pronti per l'esecuzione su cluster con scheduler **SLURM** e container **Apptainer**.
+
+### 10.1 Setup sul Cluster
+
+```bash
+# Carica gli alias
+source cluster/aliases.sh
+
+# Installa le dipendenze (usa pyproject.toml)
+bash cluster/setup.sh
+```
+
+### 10.2 Pipeline Esperimenti (`cluster/run.sh`)
+
+Lancia in sequenza per ogni variante di configurazione:
+1. **Esperimenti** (`run_experiments.py`) — tutte le 10 istanze, 5 run × 350K FE
+2. **Grafici** (`plot_convergence.py`) — convergenza, rotte, radar, confronto config
+3. **Tabella LaTeX** (`format_latex.py`) — tabella formattata per il report
+
+```bash
+# Tutti i config
+sbatch cluster/run.sh
+
+# Singolo config
+sbatch cluster/run.sh config_large
+```
+
+### 10.3 Pipeline Tuning (`cluster/tune.sh`)
+
+Lancia il tuning Optuna e salva il miglior config trovato:
+
+```bash
+# Tuning con config di default
+sbatch cluster/tune.sh
+
+# Tuning con config personalizzato
+sbatch cluster/tune.sh config_optuna_v2
+```
+
+Dopo il tuning, esegui gli esperimenti con il config ottimizzato:
+```bash
+sbatch cluster/run.sh config_tuned
+```
+
+### 10.4 Comandi Rapidi (Alias)
+
+| Comando | Descrizione |
+| :--- | :--- |
+| `run-exp [name]` | Lancia esperimenti via SLURM |
+| `tune [name]` | Lancia tuning Optuna via SLURM |
+| `myjobs` | Lista job attivi |
+| `lastlog [N]` | Segui ultimo log |
+| `runlog <ID>` | Segui log di un job |
+| `killjob <ID>` | Cancella un job |
+| `killalljobs` | Cancella tutti i job |
+| `pull-results` | Scarica risultati dal cluster |
+| `plots` | Genera tutti i grafici |
+| `latex-table` | Formatta tabella LaTeX |

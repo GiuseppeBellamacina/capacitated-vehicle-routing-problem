@@ -111,8 +111,9 @@ pip-reset() {
 # ── CVRP specific ────────────────────────────────────────────────────────────
 
 # Lancia esperimenti (sbatch cluster/run.sh — esegue tutte le config in sequenza)
+# Uso: run-exp [config_name]  (es. run-exp config_large)
 run-exp() {
-    cd "$PROJ_DIR" && sbatch cluster/run.sh
+    cd "$PROJ_DIR" && sbatch cluster/run.sh "${1:-}"
 }
 
 # Lancia tuning Optuna (sbatch cluster/tune.sh — cerca i migliori parametri HGA)
@@ -163,7 +164,7 @@ cvrp-help() {
     echo "   lastlog [N]       — segui l'ultimo log (N=ultime N righe)"
     echo ""
     echo "── CVRP ──"
-    echo "   run-exp           — lancia esperimenti via SLURM"
+    echo "   run-exp [name]    — lancia esperimenti via SLURM (default: tutti i config)"
     echo "   tune [name]   — lancia tuning Optuna via SLURM (default: config_optuna)"
     echo "   plots             — genera tutti i grafici"
     echo "   latex-table       — formatta tabella LaTeX"

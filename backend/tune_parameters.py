@@ -25,6 +25,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -219,15 +220,28 @@ def load_config_yaml(config_path: str) -> dict:
     if not path.exists():
         print(f"Error: config file not found: {path}")
         sys.exit(1)
-    with open(path) as f:
-        return yaml.safe_load(f)
+    try:
+        with open(path) as f:
+            config = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        print(f"Error: invalid YAML in config file '{path}':\n{e}")
+        sys.exit(1)
+    if not isinstance(config, dict):
+        print(
+            f"Error: config file '{path}' is empty or does not contain a YAML mapping."
+        )
+        sys.exit(1)
+    return config
 
 
 def resolve_args(args: argparse.Namespace) -> dict:
     """Merge YAML config (if any) with CLI args (CLI overrides YAML).
 
-    Returns a dict of resolved parameters.
+    Returns a dict of resolved parameters. All paths are resolved relative
+    to the project root (parent of this file's directory).
     """
+    PROJ_ROOT = Path(__file__).parent.parent
+
     # Start with YAML config defaults, or empty
     yaml_cfg: dict = {}
     if args.config:
@@ -251,14 +265,36 @@ def resolve_args(args: argparse.Namespace) -> dict:
     else:
         warm_start = True
 
+    # Resolve output_config relative to project root
+    output_config_raw = _get("output_config", args.output, None)
+    output_config = None
+    if output_config_raw:
+        output_config = str(PROJ_ROOT / output_config_raw)
+
+    # Resolve output_dir relative to project root
+    output_dir_raw = _get("output_dir", None, "results/tuning")
+    output_dir = str(PROJ_ROOT / output_dir_raw)
+
+    # Resolve storage path relative to project root (if it's a relative sqlite URL)
+    storage = _get("storage", args.storage, None)
+    if (
+        storage
+        and storage.startswith("sqlite:///")
+        and not storage.startswith("sqlite:////")
+    ):
+        rel_path = storage[len("sqlite:///") :]
+        abs_path = str(PROJ_ROOT / rel_path)
+        storage = f"sqlite:///{abs_path}"
+
     resolved = {
         "study_name": _get("study_name", args.study_name, "hga_tuning"),
         "trials": _get("trials", args.trials, 30),
-        "storage": _get("storage", args.storage, None),
+        "storage": storage,
         "budget": _get("budget", args.budget, DEFAULT_BUDGET),
         "runs": _get("runs_per_trial", args.runs, 1),
         "warm_start": warm_start,
-        "output": _get("output_config", args.output, None),
+        "output": output_config,
+        "output_dir": output_dir,
         "instances": (
             args.instances if args.instances is not None else yaml_cfg.get("instances")
         ),
@@ -274,8 +310,13 @@ def main():
     # ── Resolve instances ─────────────────────────────────────────────────
     instances = cfg["instances"] if cfg["instances"] else get_representative_instances()
 
+    # ── Create output directory ───────────────────────────────────────────
+    output_dir = Path(cfg["output_dir"])
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     if args.config:
         print(f"Config file:         {args.config}")
+    print(f"Output dir:          {output_dir}")
     print(f"Tuning on instances: {', '.join(instances)}")
     print(f"Per-trial budget:    {cfg['budget']:,} evaluations")
     print(f"Runs per instance:   {cfg['runs']}")
@@ -306,6 +347,36 @@ def main():
 
     n_trials = cfg["trials"]
 
+    # ── Periodic summary saver (called every 5 trials) ──────────────────
+    summary_file = output_dir / "tuning_summary.json"
+
+    def save_summary():
+        completed = [t for t in study.trials if t.value is not None]
+        completed_sorted = sorted(completed, key=lambda t: t.value)  # type: ignore[reportArgumentType,reportCallIssue]
+        summary = {
+            "study_name": cfg["study_name"],
+            "elapsed_seconds": time.time() - start_time,
+            "n_trials": n_trials,
+            "n_completed": len(completed),
+            "best_value": study.best_value,
+            "best_params": study.best_params,
+            "tuning_instances": instances,
+            "per_trial_budget": cfg["budget"],
+            "runs_per_instance": cfg["runs"],
+            "top_trials": [],
+        }
+        for i, t in enumerate(completed_sorted[:5]):
+            summary["top_trials"].append(
+                {
+                    "rank": i + 1,
+                    "trial_number": t.number,
+                    "value": t.value,
+                    "params": t.params,
+                }
+            )
+        with open(summary_file, "w") as f:
+            json.dump(summary, f, indent=2, default=str)
+
     # ── Progress callback ─────────────────────────────────────────────────
     def progress_callback(study: optuna.Study, trial: optuna.trial.FrozenTrial):
         if trial.value is not None:
@@ -325,6 +396,11 @@ def main():
                 f"progress={pct:.0f}% | "
                 f"best={study.best_value:.4f}"
             )
+
+            # Periodic save every 5 completed trials (crash-safe)
+            if trial.number > 0 and trial.number % 5 == 0:
+                save_summary()
+                print(f"  💾 Checkpoint saved to {summary_file}")
 
     # ── Run optimization ──────────────────────────────────────────────────
     start_time = time.time()
@@ -367,10 +443,10 @@ def main():
         )
 
     # ── Save best config as YAML if requested ─────────────────────────────
-    output_path = cfg["output"]
-    if output_path and study.best_params:
+    if cfg["output"] and study.best_params:
+        output_path = Path(cfg["output"])
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        output_path = Path(output_path)
         config = {
             "population_size": study.best_params["population_size"],
             "max_evaluations": 350000,  # Full budget for production runs
@@ -402,6 +478,10 @@ def main():
             )
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
         print(f"\nBest config saved to {output_path}")
+
+    # ── Final tuning summary save ────────────────────────────────────────
+    save_summary()
+    print(f"Tuning summary saved to {summary_file}")
 
 
 if __name__ == "__main__":

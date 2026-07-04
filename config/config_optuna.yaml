@@ -23,7 +23,7 @@ instances: []
 # instances: [A-n45-k7, B-n66-k9, E-n76-k8, P-n50-k10]
 
 # Storage Optuna (null = in-memory, "sqlite:///tuning.db" = persistente su disco)
-storage: sqlite:///tuning.db
+storage: sqlite:///results/tuning/tuning.db
 
 # Warm-start: se true, il primo trial usa i parametri default (pop=100, etc.)
 warm_start: true
