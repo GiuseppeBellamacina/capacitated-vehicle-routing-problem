@@ -68,13 +68,15 @@ type WsMessage =
   | WsExperimentComplete
   | { type: "instances"; data: InstanceSet[] }
   | { type: "error"; message: string }
-  | { type: "pong" };
+  | {  type: "pong" }
+  | { type: "experiment_cancelled"; completed_runs: number }
+  | { type: "info"; message: string };
 
 // --- Config Presets ---
 
 interface Preset {
   label: string;
-  variant: "best" | "accent" | "" | "warning" | "danger" | "balanced" | "tuned";
+  variant: "best" | "accent" | "small-preset" | "warning" | "danger" | "balanced" | "tuned";
   population_size: number;
   tournament_size: number;
   elite_count: number;
@@ -86,10 +88,20 @@ interface Preset {
 }
 
 const PRESETS: Record<string, Preset> = {
+  tuned: {
+    label: "★ Tuned", variant: "tuned",
+    population_size: 81, tournament_size: 4, elite_count: 4, granular_size: 25,
+    mutation_rate: 0.236, crossover_rate: 0.675, local_search_rate: 0.259, local_search_max_iter: 10,
+  },
   large: {
-    label: "Large (best)", variant: "best",
+    label: "Large", variant: "best",
     population_size: 100, tournament_size: 4, elite_count: 5, granular_size: 15,
     mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
+  },
+  balanced: {
+    label: "Balanced", variant: "balanced",
+    population_size: 60, tournament_size: 3, elite_count: 4, granular_size: 12,
+    mutation_rate: 0.1, crossover_rate: 0.85, local_search_rate: 0.1, local_search_max_iter: 2,
   },
   medium: {
     label: "Medium", variant: "accent",
@@ -97,12 +109,12 @@ const PRESETS: Record<string, Preset> = {
     mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
   },
   small: {
-    label: "Small", variant: "",
+    label: "Small", variant: "small-preset",
     population_size: 10, tournament_size: 2, elite_count: 2, granular_size: 3,
     mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
   },
-  ultra: {
-    label: "Ultra", variant: "warning",
+  fast: {
+    label: "Fast", variant: "warning",
     population_size: 5, tournament_size: 2, elite_count: 1, granular_size: 2,
     mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
   },
@@ -110,16 +122,6 @@ const PRESETS: Record<string, Preset> = {
     label: "Explore", variant: "danger",
     population_size: 100, tournament_size: 2, elite_count: 1, granular_size: 15,
     mutation_rate: 0.4, crossover_rate: 0.95, local_search_rate: 0.25, local_search_max_iter: 3,
-  },
-  balanced: {
-    label: "Balanced", variant: "balanced",
-    population_size: 60, tournament_size: 3, elite_count: 4, granular_size: 12,
-    mutation_rate: 0.1, crossover_rate: 0.85, local_search_rate: 0.1, local_search_max_iter: 2,
-  },
-  tuned: {
-    label: "Tuned", variant: "tuned",
-    population_size: 100, tournament_size: 4, elite_count: 5, granular_size: 15,
-    mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
   },
 };
 
@@ -854,6 +856,11 @@ function App() {
           setProgress(1);
           addLog(`🏆 Experiment complete! Best: ${Math.round(msg.best)}, Mean: ${Math.round(msg.mean)}`);
           break;
+        case "experiment_cancelled":
+          setRunning(false);
+          setProgress(1);
+          addLog(`⏹ Experiment cancelled after ${msg.completed_runs} run(s)`);
+          break;
         case "error":
           addLog(`⚠ Error: ${msg.message}`);
           setRunning(false);
@@ -939,6 +946,12 @@ function App() {
     );
   }
 
+  function stopExperiment() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ action: "stop" }));
+    addLog("⏹ Stop requested — finishing current run...");
+  }
+
   // Auto-connect on first render
   useEffect(() => {
     connectWs();
@@ -993,17 +1006,19 @@ function App() {
           </h1>
         </div>
         <div className="header-right">
+          <div className="preset-group">
           {Object.entries(PRESETS).map(([key, p]) => (
             <button
               key={key}
               className={`btn-preset ${p.variant} ${activePreset === key ? "active" : ""}`}
               onClick={() => applyPreset(key)}
               disabled={running}
-              title={`pop=${p.population_size} tourn=${p.tournament_size} elite=${p.elite_count} gran=${p.granular_size}`}
+              title={`μ=${p.population_size}  k=${p.tournament_size}  e=${p.elite_count}  γ=${p.granular_size}  pc=${p.crossover_rate}  pm=${p.mutation_rate}`}
             >
-              {p.label}
+              {activePreset === key ? p.label : p.label.replace("★ ", "")}
             </button>
           ))}
+          </div>
           <select
             value={selectedInstance}
             onChange={e => setSelectedInstance(e.target.value)}
@@ -1025,6 +1040,14 @@ function App() {
           >
             {running ? "Running..." : "▶ Run"}
           </button>
+          {running && (
+            <button
+              className="btn btn-danger"
+              onClick={stopExperiment}
+            >
+              ■ Stop
+            </button>
+          )}
           <button
             className="btn"
             onClick={connectWs}
