@@ -1,0 +1,73 @@
+\chapter{Protocollo Sperimentale}
+
+\section{Istanze}
+
+Gli esperimenti sono condotti su 10 istanze dal benchmark CVRPLIB \cite{cvrplib}, suddivise in quattro
+set con caratteristiche differenti:
+
+\begin{table}[H]
+\centering
+\caption{Istanze CVRPLIB utilizzate}
+\label{tab:instances}
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+\textbf{Set} & \textbf{Istanza} & \textbf{Nodi} & \textbf{Veicoli} & \textbf{Ottimo} \\
+\midrule
+A & A-n45-k7  & 45  &  7 & 1{,}146 \\
+A & A-n60-k9  & 60  &  9 & 1{,}354 \\
+A & A-n80-k10 & 80  & 10 & 1{,}763 \\
+\midrule
+B & B-n56-k7  & 56  &  7 &   707 \\
+B & B-n66-k9  & 66  &  9 & 1{,}316 \\
+B & B-n78-k10 & 78  & 10 & 1{,}221 \\
+\midrule
+E & E-n76-k8  & 76  &  8 &   735 \\
+E & E-n101-k14& 101 & 14 & 1{,}071 \\
+\midrule
+P & P-n50-k10 & 50  & 10 &   696 \\
+P & P-n101-k4 & 101 &  4 &   681 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+I quattro set presentano caratteristiche distintive:
+\begin{itemize}
+    \item \textbf{Set A}: clienti distribuiti uniformemente, domande omogenee;
+    \item \textbf{Set B}: clienti concentrati in cluster geografici;
+    \item \textbf{Set E}: distribuzione mista con cluster asimmetrici ---
+          considerato il set pi\`u difficile;
+    \item \textbf{Set P}: clienti con domanda molto variabile (fino a 4 veicoli
+          per 101 clienti).
+\end{itemize}
+
+\section{Setup Sperimentale}
+
+Per ogni istanza vengono eseguiti $R = 5$ run indipendenti con semi casuali diversi.
+Per ogni run vengono misurati:
+\begin{itemize}
+    \item Costo della migliore soluzione trovata;
+    \item Numero di generazioni per raggiungere la migliore soluzione;
+    \item Storico di convergenza (best cost nel tempo, campionato ogni 100 FE);
+    \item Numero di veicoli utilizzati e route complete.
+\end{itemize}
+
+Vengono poi calcolate le statistiche aggregate: best, mean, standard deviation e gap
+percentuale dal Best Known Solution (BKS). Il budget computazionale \`e fissato a
+$FE = 350{,}000$ valutazioni per ogni run.
+
+\section{Configurazione Tuned}
+
+La configurazione principale \texttt{config\_tuned} \`e stata ottenuta ottimizzando
+i parametri dell'HGA tramite Optuna \cite{akiba2019optuna}, un framework di ottimizzazione iperparametrica
+bayesiana. L'ottimizzazione ha esplorato lo spazio dei parametri su 100 trial,
+valutando ogni configurazione su un subset di 4 istanze rappresentative (una per set)
+con 3 run ciascuna e un budget ridotto di 100{,}000 FE per trial.
+
+I parametri ottimizzati sono: dimensione della popolazione $\mu \in [5, 100]$,
+tasso di crossover $p_c \in [0.5, 1.0]$, tasso di mutazione $p_m \in [0.05, 0.5]$,
+tasso di ricerca locale $p_{ls} \in [0.05, 0.5]$, tournament size $k \in [2, 6]$,
+elite count $e \in [1, 10]$ e granular size $\gamma \in [2, 40]$.
+
+Il risultato dell'ottimizzazione ha prodotto una configurazione con $\mu = 81$,
+$p_c = 0.675$, $p_m = 0.236$, $p_{ls} = 0.259$, $k = 4$, $e = 4$, $\gamma = 25$,
+che bilancia efficacemente esplorazione globale e raffinamento locale.

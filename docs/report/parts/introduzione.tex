@@ -1,0 +1,52 @@
+\chapter{Introduzione al Problema}
+
+\noindent
+\begin{tabular}{@{}l@{\quad}l@{}}
+  \textbf{Repository} & \url{https://github.com/GiuseppeBellamacina/capacitated-vehicle-routing-problem} \\
+\end{tabular}
+\bigskip
+
+Il \textbf{Capacitated Vehicle Routing Problem (CVRP)} \`e una delle varianti pi\`u studiate
+del classico Vehicle Routing Problem (VRP), introdotto da \cite{dantzig1959truck}.
+Si tratta di un problema di ottimizzazione
+combinatoria NP-hard \cite{toth2002vehicle} che consiste nel determinare un insieme di percorsi di costo minimo
+per una flotta di veicoli, al fine di servire un dato insieme di clienti geograficamente
+distribuiti, partendo e ritornando ad un deposito centrale.
+
+Formalmente, sia dato un grafo completo $G = (V, E)$, dove:
+\begin{itemize}
+    \item $V = \{v_0, v_1, \dots, v_n\}$ \`e l'insieme dei vertici, con $v_0$ che
+          rappresenta il \textit{depot} e $V \setminus \{v_0\}$ l'insieme dei clienti;
+    \item $E$ \`e l'insieme degli archi, ad ognuno dei quali \`e associato un costo
+          $d_{ij} \geq 0$ (distanza euclidea tra i nodi $i$ e $j$).
+\end{itemize}
+
+Ad ogni cliente $i \in V \setminus \{v_0\}$ \`e associata una domanda $q_i \geq 0$,
+e sono disponibili $m$ veicoli, ciascuno con capacit\`a $\sigma$.
+L'obiettivo \`e determinare per ogni veicolo un itinerario tale che:
+\begin{enumerate}[label=(\roman*)]
+    \item Ogni cliente sia visitato esattamente una volta da un solo veicolo;
+    \item Ogni percorso inizi e termini al depot;
+    \item La somma delle domande dei clienti assegnati a ciascun veicolo non superi
+          la capacit\`a $\sigma$.
+\end{enumerate}
+
+L'obiettivo \`e minimizzare il costo totale:
+
+\begin{equation}
+    \min \sum_{h=1}^{m} \sum_{(i,j) \in \eta_h} d_{ij}
+\end{equation}
+dove $\eta_h$ \`e l'insieme degli archi percorsi dal veicolo $h$.
+
+\section{Rilevanza e Applicazioni}
+
+Il CVRP ha un'enorme rilevanza pratica: ottimizzare le rotte di consegna permette
+alle aziende di logistica di ridurre i costi operativi, il consumo di carburante
+e le emissioni di CO$_2$. Le applicazioni spaziano dalla distribuzione di merci
+alla raccolta rifiuti, dal trasporto scolastico alla consegna dell'ultimo miglio.
+
+La natura NP-hard del problema rende proibitiva la risoluzione esatta per istanze
+di dimensioni realistiche ($n > 50$ clienti). Per questo motivo, la ricerca si \`e
+concentrata su metodi euristici e meta-euristici \cite{goldberg1989genetic, prins2004simple, vidal2012unified}
+in grado di produrre soluzioni
+di alta qualit\`a in tempi computazionali accettabili.

@@ -1,0 +1,356 @@
+\chapter{Algoritmo Genetico Ibrido (HGA)}
+
+Tra gli algoritmi proposti per il progetto, la scelta \`e ricaduta
+sull'\textbf{Algoritmo Genetico Ibrido (HGA)} \cite{holland1975adaptation, goldberg1989genetic}, ispirato al framework HGSADC (Hybrid Genetic Search with Adaptive Diversity Control) \cite{vidal2012unified}.
+Gli algoritmi genetici esplorano
+efficientemente lo spazio delle soluzioni attraverso i meccanismi di selezione,
+crossover e mutazione, riducendo il rischio di convergenza prematura verso minimi
+locali. L'ibridazione con operatori di ricerca locale (2-opt, Or-opt, Relocate,
+Exchange) \cite{lin1973effective, or1976traveling} permette di migliorare le soluzioni prodotte dal processo evolutivo,
+combinando l'esplorazione globale con lo sfruttamento locale.
+
+\section{Encoding e Algoritmo di Split}
+
+L'algoritmo utilizza un \textbf{encoding a permutazione} dei clienti (escluso il depot).
+Ogni cromosoma \`e una permutazione $\pi = (\pi_1, \pi_2, \dots, \pi_n)$ dei nodi
+$1, 2, \dots, n$. La decodifica da permutazione a soluzione (insieme di route) \`e
+effettuata tramite l'\textbf{algoritmo di Split} di Prins \cite{prins2004simple}, che trasforma una
+permutazione in un insieme ottimale di route che rispettano i vincoli di capacit\`a,
+utilizzando programmazione dinamica con complessit\`a $O(n^2)$.
+
+Sia $\pi = (\pi_1, \dots, \pi_n)$ una permutazione di clienti. Definiamo $V[k]$
+come il costo minimo per servire i primi $k$ clienti della permutazione:
+
+$$V[i] = \min_{j: \sum_{k=j}^{i} q_{\pi_k} \leq \sigma} \left[ V[j-1] + d_{0,\pi_j} + \sum_{k=j}^{i-1} d_{\pi_k,\pi_{k+1}} + d_{\pi_i,0} \right]$$
+
+Dopo la DP, si ricostruiscono le route tramite backtracking. L'uso dello split come
+decodifica \`e fondamentale: invece di codificare esplicitamente le route nel cromosoma,
+si lascia che la DP trovi la partizione ottimale, riducendo lo spazio di ricerca e
+garantendo l'ottimalit\`a della decodifica data la permutazione.
+
+\begin{algorithm}[H]
+\footnotesize
+\caption{Split Algorithm (Prins, 2004)}
+\label{alg:split}
+\KwIn{Permutazione $\pi = (\pi_1,\dots,\pi_n)$, matrice distanze $d$, domande $q$, capacit\`a $Q$, depot $0$}
+\KwOut{Rotte ottimali $\mathcal{R}$ e costo totale}
+
+\tcp{Pre-calcolo distanze cumulative lungo $\pi$}
+$\mathit{cum}[0] \gets 0$\;
+\For{$i \gets 1$ \KwTo $n-1$}{
+    $\mathit{cum}[i+1] \gets \mathit{cum}[i] + d[\pi_{i},\pi_{i+1}]$\;
+}
+
+\tcp{Programmazione Dinamica}
+$V[0] \gets 0$\;
+$\mathit{pred}[0] \gets -1$\;
+\For{$i \gets 1$ \KwTo $n$}{
+    $V[i] \gets +\infty$\;
+    $\mathit{load} \gets 0$\;
+    \For{$j \gets i$ \KwTo $1$}{
+        $\mathit{load} \gets \mathit{load} + q[\pi_j]$\;
+        \If{$\mathit{load} > Q$}{
+            \textbf{break}\;
+        }
+        $\mathit{routeCost} \gets d[0,\pi_j] + (\mathit{cum}[i] - \mathit{cum}[j]) + d[\pi_i,0]$\;
+        \If{$V[j-1] + \mathit{routeCost} < V[i]$}{
+            $V[i] \gets V[j-1] + \mathit{routeCost}$\;
+            $\mathit{pred}[i] \gets j-1$\;
+        }
+    }
+}
+
+\tcp{Backtracking per ricostruire le route}
+$\mathcal{R} \gets \emptyset$\;
+$i \gets n$\;
+\While{$i > 0$}{
+    $j \gets \mathit{pred}[i] + 1$\;
+    $\mathcal{R}.\text{append}(\pi[j \dots i])$\;
+    $i \gets j-1$\;
+}
+$\mathcal{R} \gets \text{reverse}(\mathcal{R})$\;  \tcp{Le route sono state costruite in ordine inverso}
+\Return{$\mathcal{R},\; V[n]$}\;
+\end{algorithm}
+
+\section{Popolazione Iniziale}
+
+La popolazione iniziale ($\mu = 81$ individui) \`e generata combinando:
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \item \textbf{Nearest Neighbor Heuristic}: Costruisce una permutazione partendo
+          dal depot e selezionando iterativamente il cliente pi\`u vicino non ancora
+          visitato.
+    \item \textbf{Clarke-Wright Savings Heuristic} \cite{clarke1964scheduling}: Utilizza l'algoritmo dei risparmi
+          per costruire route greedy, poi le appiattisce in una permutazione.
+    \item \textbf{Permutazioni casuali}: Le restanti permutazioni sono generate in modo
+          random per garantire diversit\`a genetica.
+\end{enumerate}
+
+\section{Operatori Genetici}
+
+\subsection{Selezione a Torneo}
+
+Viene utilizzata la \textbf{selezione a torneo} \cite{goldberg1991comparative} con $k = 4$. Quattro individui sono
+scelti casualmente dalla popolazione e il migliore (costo minore) viene selezionato.
+Questo metodo offre un buon bilanciamento tra pressione selettiva e diversit\`a.
+
+\subsection{Crossover: Order Crossover (OX)}
+
+L'Order Crossover \cite{davis1985applying} preserva l'ordine relativo dei geni da entrambi i genitori.
+L'Algoritmo~\ref{alg:ox} descrive il procedimento: vengono selezionati due punti di
+taglio casuali, il segmento centrale viene copiato dal primo genitore, e le posizioni
+rimanenti sono riempite con i geni del secondo genitore in ordine di apparizione,
+saltando quelli gi\`a presenti. Il tasso di crossover \`e $p_c = 0.675$.
+
+\begin{algorithm}[H]
+\footnotesize
+\caption{Order Crossover (OX) \cite{davis1985applying}}
+\label{alg:ox}
+\KwIn{Permutazioni genitore $P_1$, $P_2$ di lunghezza $n$}
+\KwOut{Permutazione figlio $C$}
+
+\tcp{Seleziona due punti di taglio casuali}
+$cx_1 \gets \text{random}(0, n-1)$\;
+$cx_2 \gets \text{random}(0, n-1)$\;
+\If{$cx_1 > cx_2$}{
+    $cx_1, cx_2 \gets cx_2, cx_1$\;
+}
+
+\tcp{Copia il segmento centrale da $P_1$}
+$C \gets$ array di $n$ elementi non inizializzati\;
+\For{$i \gets cx_1$ \KwTo $cx_2$}{
+    $C[i] \gets P_1[i]$\;
+}
+
+\tcp{Riempi le posizioni rimanenti con i geni di $P_2$ in ordine}
+$\mathit{seg} \gets \{C[cx_1], \dots, C[cx_2]\}$\; \tcp{Insieme dei geni gi\`a presenti}
+$j \gets (cx_2 + 1) \bmod n$\;
+\ForEach{$i \in [cx_2+1,\; cx_2+2,\; \dots,\; cx_2+n]$}{
+    $\mathit{pos} \gets i \bmod n$\;
+    \If{$\mathit{pos} \notin [cx_1, cx_2]$}{
+        \While{$P_2[j] \in \mathit{seg}$}{
+            $j \gets (j + 1) \bmod n$\;
+        }
+        $C[\mathit{pos}] \gets P_2[j]$\;
+        $\mathit{seg}.\text{add}(P_2[j])$\;
+        $j \gets (j + 1) \bmod n$\;
+    }
+}
+\Return{$C$}\;
+\end{algorithm}
+
+\subsection{Mutazione}
+
+Sono implementati tre operatori di mutazione, scelti casualmente con probabilit\`a
+differenziate:
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \item \textbf{Swap Mutation} (40\%): Scambia due elementi in posizioni casuali.
+    \item \textbf{Insert Mutation} (30\%): Rimuove un elemento e lo reinserisce in
+          una posizione diversa.
+    \item \textbf{Inversion Mutation} (30\%): Inverte un sottosegmento della
+          permutazione.
+\end{enumerate}
+
+Il tasso di mutazione \`e $p_m = 0.236$.
+
+\section{Ricerca Locale Granulare}
+
+L'ibridazione \`e realizzata attraverso quattro operatori di ricerca locale, applicati
+con probabilit\`a $p_{ls} = 0.259$ ai nuovi individui:
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \item \textbf{2-opt (intra-route)}: Per ogni route, cerca coppie di archi $(a,b)$
+          e $(c,d)$ tali che la loro sostituzione con $(a,c)$ e $(b,d)$ riduca il
+          costo totale.
+    \item \textbf{Or-opt (intra-route)}: Trasferisce segmenti di 1, 2 o 3 nodi
+          consecutivi in posizioni diverse all'interno della stessa route.
+    \item \textbf{Relocate (inter-route)}: Sposta un cliente da una route all'altra.
+    \item \textbf{Exchange (inter-route)}: Scambia due clienti appartenenti a route
+          diverse.
+\end{enumerate}
+
+Per mitigare l'elevato costo computazionale degli operatori inter-route, \`e stata
+integrata la \textbf{Ricerca Locale Granulare} (Granular Local Search, GLS) \cite{toth2003granular}. Per
+ciascun cliente $i$ si definisce un intorno di vicinanza $\Gamma_i$ composto dai soli
+$\gamma = 25$ clienti pi\`u vicini. Durante la ricerca locale, un cliente viene
+inserito o scambiato solo in posizioni adiacenti a nodi nel suo intorno granulare,
+riducendo la complessit\`a a $O(N \cdot \gamma)$.
+
+\begin{algorithm}[H]
+\footnotesize
+\caption{Relocate con Ricerca Locale Granulare (steepest descent)}
+\label{alg:relocate}
+\KwIn{Insieme di route $\mathcal{R}$, matrice distanze $d$, domande $q$, capacit\`a $Q$, intorni granulari $\Gamma$, depot $0$, max iterazioni $m$}
+\KwOut{Route migliorate $\mathcal{R}^*$}
+
+\tcp{Pre-calcolo carichi delle route}
+$\mathit{loads}[r] \gets \sum_{n \in r} q[n]$ per ogni route $r \in \mathcal{R}$\;
+$\mathit{best} \gets \mathcal{R}$\;
+$\mathit{bestCost} \gets \textsc{Cost}(\mathit{best})$\;
+$\mathit{iter} \gets 0$\;
+
+\Repeat{$\neg \mathit{improved} \lor (m > 0 \land \mathit{iter} \geq m)$}{
+    $\mathit{iter} \gets \mathit{iter} + 1$\;
+    $\mathit{improved} \gets \text{false}$\;
+    $\mathit{bestMoveCost} \gets \mathit{bestCost}$\;
+    $\mathit{bestMove} \gets \text{null}$\;
+
+    \ForEach{route $r_{\text{from}} \in \mathit{best}$}{
+        \ForEach{nodo $v$ in posizione $f$ di $r_{\text{from}}$}{
+            $\delta_{\text{from}} \gets d[\mathit{prev}(v), \mathit{next}(v)] - (d[\mathit{prev}(v), v] + d[v, \mathit{next}(v)])$\;
+
+            \ForEach{route $r_{\text{to}} \in \mathit{best}$, $r_{\text{to}} \neq r_{\text{from}}$}{
+                \If{$\mathit{loads}[r_{\text{to}}] + q[v] > Q$}{
+                    \textbf{continue}\;
+                }
+                \ForEach{posizione $p \in [0, |r_{\text{to}}|]$}{
+                    \tcp{Filtro GLS: verifica adiacenza granulare}
+                    $\mathit{pn} \gets r_{\text{to}}[p-1]$ se $p > 0$ altrimenti $0$\;
+                    $\mathit{nn} \gets r_{\text{to}}[p]$ se $p < |r_{\text{to}}|$ altrimenti $0$\;
+                    \If{$(\mathit{pn} \neq 0 \land \mathit{pn} \notin \Gamma[v]) \land (\mathit{nn} \neq 0 \land \mathit{nn} \notin \Gamma[v])$}{
+                        \textbf{continue}\;
+                    }
+                    $\delta_{\text{to}} \gets d[\mathit{pn}, v] + d[v, \mathit{nn}] - d[\mathit{pn}, \mathit{nn}]$\;
+                    $\mathit{newCost} \gets \mathit{bestCost} + \delta_{\text{from}} + \delta_{\text{to}}$\;
+                    \If{$\mathit{newCost} < \mathit{bestMoveCost}$}{
+                        $\mathit{bestMoveCost} \gets \mathit{newCost}$\;
+                        $\mathit{bestMove} \gets (r_{\text{from}}, f, r_{\text{to}}, p)$\;
+                    }
+                }
+            }
+        }
+    }
+
+    \If{$\mathit{bestMove} \neq \text{null}$}{
+        $(r_{\text{from}}, f, r_{\text{to}}, p) \gets \mathit{bestMove}$\;
+        $v \gets \mathit{best}[r_{\text{from}}][f]$\;
+        Rimuovi $v$ da $\mathit{best}[r_{\text{from}}]$ e inseriscilo in $\mathit{best}[r_{\text{to}}]$ alla posizione $p$\;
+        $\mathit{loads}[r_{\text{from}}] \gets \mathit{loads}[r_{\text{from}}] - q[v]$\;
+        $\mathit{loads}[r_{\text{to}}] \gets \mathit{loads}[r_{\text{to}}] + q[v]$\;
+        $\mathit{bestCost} \gets \mathit{bestMoveCost}$\;
+        $\mathit{improved} \gets \text{true}$\;
+    }
+}
+\Return{$\mathit{best}$}\;
+\end{algorithm}
+
+\section{Elitismo e Rimpiazzo}
+
+I migliori $e = 4$ individui della popolazione corrente sono preservati nella
+generazione successiva (elitismo). Il resto della popolazione \`e sostituito
+dai nuovi individui generati tramite crossover, mutazione e ricerca locale.
+
+\section{Criterio di Arresto}
+
+L'algoritmo si arresta dopo $FE = 350{,}000$ valutazioni della funzione fitness,
+corrispondenti a circa $4{,}300$ generazioni con $\mu = 81$.
+
+\section{Parametri Riepilogativi}
+
+\begin{table}[H]
+\centering
+\caption{Parametri dell'HGA --- Configurazione Tuned}
+\label{tab:params}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parametro} & \textbf{Valore} \\
+\midrule
+Dimensione popolazione ($\mu$) & 81 \\
+Crossover rate ($p_c$) & 0.675 \\
+Mutation rate ($p_m$) & 0.236 \\
+Local search rate ($p_{ls}$) & 0.259 \\
+Tournament size ($k$) & 4 \\
+Elite count ($e$) & 4 \\
+Granular size ($\gamma$) & 25 \\
+Max valutazioni (FE) & 350{,}000 \\
+Generazioni medie & $\sim$4{,}300 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Ciclo Principale dell'HGA}
+
+L'Algoritmo~\ref{alg:hga} mostra il ciclo evolutivo principale. La popolazione
+iniziale viene creata combinando euristiche costruttive e permutazioni casuali.
+Ad ogni generazione, i migliori $e$ individui sono preservati (elitismo), mentre
+i restanti sono generati tramite selezione a torneo, Order Crossover (OX), mutazione
+e ricerca locale. L'algoritmo termina dopo $FE = 350{,}000$ valutazioni della
+funzione fitness.
+
+\begin{algorithm}[H]
+\footnotesize
+\caption{Ciclo Principale dell'HGA}
+\label{alg:hga}
+\KwIn{Istanza CVRP; parametri: $\mu$, $p_c$, $p_m$, $p_{ls}$, $k$, $e$, $\gamma$, $FE$}
+\KwOut{Migliore soluzione $S^*$}
+
+\tcp{Inizializzazione}
+$\mathcal{P} \gets \emptyset$\;
+$\mathcal{P}.\text{append}(\textsc{Split}(\textsc{NearestNeighbor}()))$\;
+$\mathcal{P}.\text{append}(\textsc{Split}(\textsc{ClarkeWrightSavings}()))$\;
+\While{$|\mathcal{P}| < \mu$}{
+    $\mathcal{P}.\text{append}(\textsc{Split}(\textsc{RandomPermutation}()))$\;
+}
+$S^* \gets \arg\min_{S \in \mathcal{P}} S.\text{cost}$\;
+$\mathit{evals} \gets |\mathcal{P}|$\;
+
+\tcp{Ciclo evolutivo}
+\While{$\mathit{evals} < FE$}{
+    $\mathcal{P}' \gets \text{top-}e(\mathcal{P})$\;  \tcp{Elitismo}
+    \While{$|\mathcal{P}'| < \mu$}{
+        \tcp{Selezione e Crossover}
+        \If{$\text{random}() < p_c$}{
+            $P_1 \gets \textsc{TournamentSelect}(\mathcal{P}, k)$\;
+            $P_2 \gets \textsc{TournamentSelect}(\mathcal{P}, k)$\;
+            $\pi_{\text{child}} \gets \textsc{OrderCrossover}(P_1, P_2)$\;
+        }
+        \Else{
+            $P \gets \textsc{TournamentSelect}(\mathcal{P}, k)$\;
+            $\pi_{\text{child}} \gets \text{flatten}(P.\text{routes})$\;
+        }
+
+        \tcp{Mutazione}
+        \If{$\text{random}() < p_m$}{
+            $\pi_{\text{child}} \gets \textsc{Mutate}(\pi_{\text{child}})$\;  \tcp{Swap 40\%, Insert 30\%, Inversion 30\%}
+        }
+
+        \tcp{Decodifica}
+        $S_{\text{child}} \gets \textsc{Split}(\pi_{\text{child}})$\;
+
+        \tcp{Educazione leggera (sempre)}
+        $S_{\text{child}} \gets \textsc{TwoOpt}(S_{\text{child}})$\;
+
+        \tcp{Ricerca locale completa (probabilistica)}
+        \If{$\text{random}() < p_{ls}$}{
+            $S_{\text{child}} \gets \textsc{TwoOpt}(S_{\text{child}})$\;
+            $S_{\text{child}} \gets \textsc{OrOpt}(S_{\text{child}})$\;
+            $S_{\text{child}} \gets \textsc{Relocate}(S_{\text{child}}, \gamma)$\;
+            $S_{\text{child}} \gets \textsc{Exchange}(S_{\text{child}}, \gamma)$\;
+        }
+
+        $\mathcal{P}'.\text{append}(S_{\text{child}})$\;
+
+        \If{$S_{\text{child}}.\text{cost} < S^*.\text{cost}$}{
+            $S^* \gets S_{\text{child}}$\;
+        }
+    }
+
+    \tcp{Rimpiazzo duplicati}
+    \ForEach{coppia di individui con stesso costo in $\mathcal{P}'$}{
+        Sostituisci uno con $\textsc{Split}(\textsc{RandomPermutation}())$\;
+    }
+
+    $\mathcal{P} \gets \mathcal{P}'$\;
+}
+
+\Return{$S^*$}\;
+\end{algorithm}
+
+\section{Architettura Software}
+
+L'algoritmo \`e integrato in un'architettura moderna con backend Python (FastAPI)\cite{fastapi} e
+frontend React con visualizzazione in tempo reale tramite WebSocket. Il backend espone
+endpoint REST per avviare l'ottimizzazione e recuperare i risultati, mentre il frontend
+mostra simultaneamente la disposizione geografica delle route, i grafici di convergenza
+e le statistiche aggregate. La parallelizzazione multi-run sfrutta \texttt{ThreadPoolExecutor}
+per eseguire run indipendenti in parallelo, e l'accelerazione Numba JIT \cite{lam2015numba} per i calcoli
+critici (matrici di distanza, Split DP).

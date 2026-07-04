@@ -1,0 +1,94 @@
+\chapter{Conclusioni}
+
+Il progetto ha dimostrato l'efficacia dell'Hybrid Genetic Algorithm per la
+risoluzione del Capacitated Vehicle Routing Problem. L'approccio ibrido, che
+combina la potenza esplorativa degli algoritmi genetici con l'efficacia della
+ricerca locale, produce soluzioni di alta qualit\`a sulle istanze benchmark
+CVRPLIB.
+
+\section{Scelte Progettuali e Originalit\`a}
+
+\subsection{Scelte Chiave}
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \item \textbf{Split Algorithm} \cite{prins2004simple}: L'uso dello split di Prins come decodifica
+    \`e fondamentale. Invece di codificare esplicitamente le route nel cromosoma,
+    si lascia che la DP trovi la partizione ottimale, riducendo lo spazio di
+    ricerca e garantendo l'ottimalit\`a della decodifica data la permutazione.
+
+    \item \textbf{Ricerca Locale Granulare}: L'integrazione della GLS con
+    $\gamma = 25$ permette di esplorare un vicinato inter-route molto pi\`u
+    ampio rispetto alle configurazioni standard ($\gamma = 15$), senza il
+    costo computazionale proibitivo della ricerca esaustiva $O(N^2)$.
+
+    \item \textbf{Ottimizzazione Iperparametrica}: L'uso di Optuna per il
+    tuning automatico dei parametri ha permesso di scoprire una configurazione
+    non ovvia ($\mu = 81$, $p_c = 0.675$, $p_m = 0.236$, $p_{ls} = 0.259$)
+    che supera le configurazioni progettate manualmente.
+
+    \item \textbf{Accelerazione Numba}: L'uso del compilatore JIT Numba per i
+    calcoli critici (matrici di distanza, Split DP, operatori di ricerca locale)
+    ha permesso di ottenere performance computazionali elevate in Python puro,
+    senza ricorrere a implementazioni in C/C++.
+
+    \item \textbf{Architettura client-server con WebSocket}: L'algoritmo \`e
+    integrato in un'architettura moderna con backend Python (FastAPI) e frontend
+    React, permettendo la visualizzazione in tempo reale dell'evoluzione
+    dell'algoritmo tramite WebSocket.
+\end{enumerate}
+
+\subsection{Difficolt\`a Affrontate}
+
+\begin{itemize}
+    \item \textbf{Vincoli di capacit\`a}: Gestire i vincoli di capacit\`a durante
+    il crossover e la mutazione \`e complesso perch\'e questi operatori lavorano
+    sulla permutazione, non sulle route. Lo split algorithm risolve elegantemente
+    questo problema.
+
+    \item \textbf{Bilanciamento esplorazione-sfruttamento}: Trovare il giusto
+    tasso di ricerca locale \`e stato cruciale: troppo alto causa convergenza
+    prematura, troppo basso rallenta il miglioramento. Il tuning con Optuna ha
+    permesso di individuare il valore ottimale $p_{ls} = 0.259$.
+
+    \item \textbf{Scalabilit\`a}: Su istanze con 101 nodi, lo split $O(n^2)$ e
+    la ricerca locale diventano computazionalmente significativi, richiedendo
+    attenzione all'efficienza implementativa e all'uso di Numba JIT.
+\end{itemize}
+
+\section{Risultati Raggiunti}
+
+I punti di forza dell'implementazione includono:
+\begin{itemize}
+    \item L'uso dello split algorithm per una decodifica ottimale;
+    \item Un insieme diversificato di operatori genetici e di ricerca locale;
+    \item L'ottimizzazione iperparametrica con Optuna che ha prodotto la
+    configurazione Tuned;
+    \item Un'architettura software moderna con visualizzazione in tempo reale;
+    \item Robustezza e consistenza dei risultati tra run diverse;
+    \item Gap medio dello 0.84\% sul benchmark CVRPLIB, con prestazioni
+    eccellenti sulle istanze di set A e B.
+\end{itemize}
+
+\section{Sviluppi Futuri}
+
+Possibili estensioni del lavoro includono:
+\begin{itemize}
+    \item L'implementazione di una ricerca locale pi\`u aggressiva (Variable
+    Neighborhood Search) \cite{vidal2012unified};
+    \item L'uso di tecniche di diversificazione della popolazione (crowding,
+    fitness sharing);
+    \item L'estensione ad altre varianti del VRP (VRPTW con finestre temporali,
+    VRPPD con pickup and delivery);
+    \item L'implementazione di un algoritmo memetico con ricombinazione
+    ottimale dei percorsi (edge assembly crossover) \cite{vidal2013hybrid};
+    \item L'integrazione con un solver esatto per il post-processing delle
+    route (set partitioning).
+\end{itemize}
+
+Il codice sorgente del progetto, comprensivo di backend Python, frontend React
+e relazione \LaTeX, \`e disponibile nella repository del progetto.
+
+\vspace{1cm}
+\begin{center}
+\rule{0.5\textwidth}{0.5mm}
+\end{center}

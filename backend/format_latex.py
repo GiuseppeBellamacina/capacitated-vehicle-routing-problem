@@ -3,7 +3,7 @@
 Usage:
     python format_latex.py --table --results ../results/config_small/results.json
     python format_latex.py --comparison
-    python format_latex.py --comparison --output results/table_comparison.txt
+    python format_latex.py --comparison --output ../results/table_comparison.txt
 """
 
 import argparse
@@ -150,8 +150,9 @@ def format_comparison_table(output_file: Path | None = None):
         r"  \caption{Config variant comparison — best solution cost and gap from BKS}"
     )
     lines.append(r"  \label{tab:config-comparison}")
-    lines.append(r"  \footnotesize")
-    lines.append(r"  \setlength{\tabcolsep}{3.5pt}")
+    lines.append(r"  \resizebox{\textwidth}{!}{")
+    lines.append(r"  \begin{scriptsize}")
+    lines.append(r"  \setlength{\tabcolsep}{2.5pt}")
     lines.append(f"  \\begin{{tabular}}{{{{{col_spec}}}}}")
     lines.append(r"    \toprule")
 
@@ -201,6 +202,7 @@ def format_comparison_table(output_file: Path | None = None):
     # Footer
     lines.append(r"    \bottomrule")
     lines.append(r"  \end{tabular}")
+    lines.append(r"  \end{scriptsize}}")
 
     # Legend row with actual config parameters
     legend_parts = []
@@ -219,10 +221,11 @@ def format_comparison_table(output_file: Path | None = None):
         elite = params.get("elite_count", "?")
         gran = params.get("granular_size", "?")
         legend_parts.append(
-            f"{label}: pop={pop}, tournament={tourn}, elite={elite}, granular={gran}"
+            f"\\textbf{{{label}}}: pop={pop}, tournament={tourn}, elite={elite}, granular={gran}"
         )
     lines.append(r"  \vspace{4pt}")
-    lines.append(r"  \caption*{\footnotesize " + "; ".join(legend_parts) + r"}")
+    lines.append(r"  \centering")
+    lines.append(r"  \caption*{\scriptsize " + "; ".join(legend_parts) + r"}")
 
     lines.append(r"\end{table}")
 
