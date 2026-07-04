@@ -1,0 +1,48 @@
+\section{Protocollo Sperimentale}
+
+\subsection{Istanze}
+
+Gli esperimenti usano 10 istanze dal benchmark CVRPLIB \cite{cvrplib}, suddivise in
+quattro set con caratteristiche differenti (Set A: distribuzione uniforme;
+Set B: cluster geografici; Set E: distribuzione mista --- il pi\`u difficile;
+Set P: domanda molto variabile).
+
+\begin{table}[H]
+\centering
+\caption{Istanze CVRPLIB utilizzate}
+\label{tab:instances}
+\footnotesize
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+\textbf{Set} & \textbf{Istanza} & \textbf{Nodi} & \textbf{Veicoli} & \textbf{Ottimo} \\
+\midrule
+A & A-n45-k7  & 45  &  7 & 1{,}146 \\
+A & A-n60-k9  & 60  &  9 & 1{,}354 \\
+A & A-n80-k10 & 80  & 10 & 1{,}763 \\
+B & B-n56-k7  & 56  &  7 &   707 \\
+B & B-n66-k9  & 66  &  9 & 1{,}316 \\
+B & B-n78-k10 & 78  & 10 & 1{,}221 \\
+E & E-n76-k8  & 76  &  8 &   735 \\
+E & E-n101-k14& 101 & 14 & 1{,}071 \\
+P & P-n50-k10 & 50  & 10 &   696 \\
+P & P-n101-k4 & 101 &  4 &   681 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Setup Sperimentale}
+
+Per ogni istanza si eseguono $R = 5$ run indipendenti con semi diversi e budget
+$FE = 350{,}000$. Si misurano: costo migliore, deviazione standard, storico di
+convergenza e numero di veicoli utilizzati.
+
+\subsection{Configurazione Tuned}
+
+La configurazione \texttt{config\_tuned} \`e ottenuta tramite tuning bayesiano con
+Optuna \cite{akiba2019optuna} su 100 trial, 4 istanze rappresentative (una per set),
+3 run per trial, budget 100{,}000 FE. Lo spazio di ricerca include:
+$\mu \in [20,150]$, $p_c \in [0.5,1.0]$, $p_m \in [0.01,0.5]$,
+$p_{ls} \in [0.01,0.3]$, $k \in [2,5]$, $e \in [0,15]$, $\gamma \in [10,40]$.
+
+Il tuning ha prodotto: $\mu=81$, $p_c=0.675$, $p_m=0.236$, $p_{ls}=0.259$,
+$k=4$, $e=4$, $\gamma=25$.

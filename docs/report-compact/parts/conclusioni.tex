@@ -1,0 +1,56 @@
+\section{Conclusioni}
+
+Il progetto ha dimostrato l'efficacia dell'Hybrid Genetic Algorithm per il
+CVRP, producendo soluzioni di alta qualit\`a (gap medio 0.84\%) sulle istanze
+benchmark CVRPLIB. L'approccio ibrido, che combina la potenza esplorativa degli
+algoritmi genetici con l'efficacia della ricerca locale, si \`e dimostrato
+particolarmente efficace.
+
+\subsection{Scelte Progettuali e Originalit\`a}
+
+\begin{itemize}[nosep]
+    \item \textbf{Split di Prins} \cite{prins2004simple}: l'uso dello split come
+    decodifica \`e fondamentale --- invece di codificare esplicitamente le route,
+    la DP trova la partizione ottimale, riducendo lo spazio di ricerca e
+    garantendo l'ottimalit\`a della decodifica data la permutazione.
+    \item \textbf{Ricerca Locale Granulare}: l'integrazione della GLS con
+    $\gamma=25$ permette di esplorare un vicinato inter-route molto pi\`u
+    ampio rispetto alle configurazioni standard ($\gamma=15$), senza il
+    costo computazionale della ricerca esaustiva $O(N^2)$.
+    \item \textbf{Tuning con Optuna} \cite{akiba2019optuna}: ha scoperto una
+    configurazione non ovvia ($\mu=81$, $p_c=0.675$, $p_m=0.236$, $p_{ls}=0.259$)
+    che supera le configurazioni progettate manualmente.
+    \item \textbf{Numba JIT} \cite{lam2015numba}: performance C/C++ in Python
+    puro per i calcoli critici (matrici di distanza, Split DP, operatori locali).
+    \item \textbf{Architettura client-server}: FastAPI + React con
+    visualizzazione real-time via WebSocket \cite{fastapi}.
+\end{itemize}
+
+\subsection{Difficolt\`a e Risultati}
+
+Le sfide principali hanno riguardato la gestione dei vincoli di capacit\`a
+durante crossover e mutazione (risolta elegantemente dallo Split) e il
+bilanciamento esplorazione-sfruttamento (ottimizzato da Optuna con
+$p_{ls}=0.259$). Su istanze con 101 nodi, lo Split $O(n^2)$ e la ricerca
+locale diventano computazionalmente significativi, richiedendo l'uso di Numba
+JIT per mantenere tempi accettabili.
+
+I punti di forza dell'implementazione includono: robustezza e consistenza tra
+run ($\sigma < 1$ su 7/10 istanze), gap medio 0.84\%, eccellenza sui set A e B
+(gap $<0.15\%$ su A-n45-k7 e A-n60-k9), e un'architettura software moderna con
+visualizzazione real-time.
+
+\subsection{Sviluppi Futuri}
+
+Possibili estensioni del lavoro includono:
+\begin{itemize}[nosep]
+    \item Implementazione di una ricerca locale pi\`u aggressiva (Variable
+    Neighborhood Search) \cite{vidal2012unified};
+    \item Tecniche di diversificazione della popolazione (crowding, fitness sharing);
+    \item Estensione ad altre varianti del VRP (VRPTW con finestre temporali,
+    VRPPD con pickup and delivery);
+    \item Implementazione di un algoritmo memetico con ricombinazione ottimale
+    dei percorsi (edge assembly crossover) \cite{vidal2013hybrid};
+    \item Integrazione con un solver esatto per il post-processing delle route
+    (set partitioning).
+\end{itemize}

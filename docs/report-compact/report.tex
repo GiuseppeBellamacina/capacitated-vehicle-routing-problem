@@ -1,4 +1,4 @@
-\documentclass[11pt,a4paper,openany,oneside]{book}
+\documentclass[10pt,a4paper]{article}
 
 \usepackage{hyperref}
 \usepackage[italian]{babel}
@@ -9,7 +9,7 @@
 \usepackage{graphicx}
 \usepackage[font=small,labelfont=bf,tableposition=top]{caption}
 
-\usepackage[a4paper, top=2.0cm, bottom=2.2cm, left=1.6cm, right=1.6cm, headheight=14pt]{geometry}
+\usepackage[a4paper, top=1.8cm, bottom=1.8cm, left=1.8cm, right=1.8cm, headheight=12pt]{geometry}
 
 \usepackage{listings}
 \usepackage{inconsolata}
@@ -91,22 +91,22 @@
 
 \emergencystretch=4em
 
+\usepackage{setspace}
+\setstretch{0.98}
+
+\title{\vspace{-2cm}\Large\textbf{Capacitated Vehicle Routing Problem}\\\large Soluzione tramite Algoritmo Genetico Ibrido (HGA)}
+\author{\textbf{Giuseppe Bellamacina} -- Matricola 1000030349\\[0.2cm]Corso di Artificial and Swarm Intelligence\\Prof. Mario Francesco Pavone\\Universit\`a degli Studi di Catania\\Dipartimento di Matematica e Informatica\\Anno Accademico 2025/2026}
+\date{}
+
 \begin{document}
 
-\newgeometry{top=2.5cm, bottom=3cm, left=2.5cm, right=2.5cm}
-\input{parts/frontespizio}
-\restoregeometry
-
-\tableofcontents
+\maketitle
+\thispagestyle{empty}
 
 \input{parts/introduzione}
-
 \input{parts/algoritmo}
-
 \input{parts/protocollo}
-
 \input{parts/risultati}
-
 \input{parts/conclusioni}
 
 \printbibliography[heading=bibintoc,title={Bibliografia}]
