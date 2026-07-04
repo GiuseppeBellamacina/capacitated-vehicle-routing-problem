@@ -98,7 +98,7 @@ def _short_label(config_name: str) -> str:
         "config_small": "Small",
         "config_medium": "Medium",
         "config_large": "Large",
-        "config_ultra": "Ultra",
+        "config_fast": "Fast",
         "config_explore": "Explore",
         "config_balanced": "Balanced",
         "config_tuned": "Tuned",
@@ -115,7 +115,16 @@ def format_comparison_table(output_file: Path | None = None):
         )
         return
 
-    config_names = sorted(config_results.keys())
+    config_order = [
+        "config_tuned",
+        "config_balanced",
+        "config_explore",
+        "config_large",
+        "config_medium",
+        "config_small",
+        "config_fast",
+    ]
+    config_names = [c for c in config_order if c in config_results]
     instances_order = discover_instances()
 
     # Find common instances present in ALL configs
@@ -141,6 +150,8 @@ def format_comparison_table(output_file: Path | None = None):
         r"  \caption{Config variant comparison — best solution cost and gap from BKS}"
     )
     lines.append(r"  \label{tab:config-comparison}")
+    lines.append(r"  \footnotesize")
+    lines.append(r"  \setlength{\tabcolsep}{3.5pt}")
     lines.append(f"  \\begin{{tabular}}{{{{{col_spec}}}}}")
     lines.append(r"    \toprule")
 
@@ -157,15 +168,32 @@ def format_comparison_table(output_file: Path | None = None):
         optimal = first["optimal"]
         opt_str = f"{optimal:,}" if optimal is not None else "--"
 
-        row_cells = [inst_name, opt_str]
+        # Compute gaps for all configs to find the best (lowest gap%)
+        # Round to 6 decimals to handle floating-point precision across configs
+        cfg_gaps: list[float] = []
         for cfg_name in config_names:
             r = config_results[cfg_name][inst_name]
-            best = r["best"]
+            best_val = r["best"]
             if optimal:
-                gap = ((best - optimal) / optimal) * 100
-                cell = f"{best:,.2f} ({gap:+.2f}\\%)"
+                gap = round(((best_val - optimal) / optimal) * 100, 6)
             else:
-                cell = f"{best:,.2f}"
+                gap = float("inf")
+            cfg_gaps.append(gap)
+
+        min_gap = min(cfg_gaps)
+
+        row_cells = [inst_name, opt_str]
+        for i, cfg_name in enumerate(config_names):
+            r = config_results[cfg_name][inst_name]
+            best_val = r["best"]
+            if optimal:
+                gap = cfg_gaps[i]
+                cell = f"{best_val:,.2f} ({gap:+.2f}\\%)"
+            else:
+                cell = f"{best_val:,.2f}"
+            # Bold the best (lowest gap%) value(s) — ties are all bolded
+            if cfg_gaps[i] == min_gap and optimal:
+                cell = f"\\textbf{{{cell}}}"
             row_cells.append(cell)
 
         lines.append("    " + " & ".join(row_cells) + r" \\")

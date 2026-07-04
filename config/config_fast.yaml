@@ -1,5 +1,5 @@
 # ==============================================================================
-# CONFIGURAZIONE HGA — Variante "Ultra" (popolazione minima, caso estremo)
+# CONFIGURAZIONE HGA — Variante "Fast" (popolazione minima, caso estremo)
 # ==============================================================================
 # Strategia: solo 5 individui (~47.000 generazioni), massimo numero di cicli
 # evolutivi. Elitismo 20% (1 individuo), torneo a 2 (massima pressione su pop
@@ -18,5 +18,5 @@ elite_count: 1
 local_search_max_iter: 2
 granular_size: 2
 
-output_dir: results/config_ultra
-imgs_dir: docs/report/imgs/config_ultra
+output_dir: results/config_fast
+imgs_dir: docs/report/imgs/config_fast

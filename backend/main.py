@@ -25,8 +25,9 @@ app.add_middleware(
 # Available instances
 INSTANCES_DIR = Path(__file__).parent.parent / "instances"
 
-# WebSocket connections
+# WebSocket connections and cancellation events
 active_connections: dict[str, WebSocket] = {}
+cancel_events: dict[str, asyncio.Event] = {}
 
 
 def get_available_instances() -> list[dict[str, Any]]:
@@ -83,6 +84,7 @@ async def run_algorithm_with_callback(
     max_fitness_evals: int = 350_000,
     runs: int = 5,
     hga_config: dict | None = None,
+    cancel_event: asyncio.Event | None = None,
 ):
     """Run the HGA algorithm and stream progress via WebSocket."""
     filepath = INSTANCES_DIR / f"{instance_name}.vrp"
@@ -102,6 +104,13 @@ async def run_algorithm_with_callback(
     total_start = time.time()
 
     for run_idx in range(runs):
+        # Check cancellation before each run
+        if cancel_event and cancel_event.is_set():
+            await websocket.send_json(
+                {"type": "experiment_cancelled", "completed_runs": run_idx}
+            )
+            return
+
         await websocket.send_json(
             {
                 "type": "run_start",
@@ -258,9 +267,20 @@ async def websocket_endpoint(websocket: WebSocket):
                     "local_search_max_iter": data.get("local_search_max_iter", 2),
                     "granular_size": data.get("granular_size", 15),
                 }
+                # Create a fresh cancel event for this run
+                cancel_events[client_id] = asyncio.Event()
                 await run_algorithm_with_callback(
-                    websocket, instance_name, max_evals, runs, hga_config
+                    websocket,
+                    instance_name,
+                    max_evals,
+                    runs,
+                    hga_config,
+                    cancel_events[client_id],
                 )
+            elif action == "stop":
+                cancel_event = cancel_events.get(client_id)
+                if cancel_event:
+                    cancel_event.set()
             elif action == "list_instances":
                 instances = get_available_instances()
                 await websocket.send_json({"type": "instances", "data": instances})
@@ -270,6 +290,7 @@ async def websocket_endpoint(websocket: WebSocket):
         pass
     finally:
         active_connections.pop(client_id, None)
+        cancel_events.pop(client_id, None)
 
 
 @app.get("/api/health")

@@ -31,7 +31,7 @@ INSTANCES_DIR = Path(__file__).parent.parent / "instances"
 CONV_DIR = None
 ROUTES_DIR = None
 SUMMARY_DIR = None
-CONFIG_LABEL = ""  # derived from imgs_dir (e.g. "config_ultra")
+CONFIG_LABEL = ""  # derived from imgs_dir (e.g. "config_fast")
 
 # Discovered at module load — auto-picks up new .vrp files
 ALL_INSTANCES = discover_instances()
@@ -67,7 +67,7 @@ CONFIG_COLORS = {
     "config_small": "#0077BB",
     "config_medium": "#EE7733",
     "config_large": "#009988",
-    "config_ultra": "#CC3311",
+    "config_fast": "#CC3311",
     "config_explore": "#EE3377",
     "config_tuned": "#8855CC",
     "config_balanced": "#BBBB00",
@@ -78,7 +78,7 @@ CONFIG_LABELS = {
     "config_small": "Small (pop=10,cross=0.8,mut=0.1,local_rate=0.1,tourn=2,elite=2,local_max=2,granular=3)",
     "config_medium": "Medium (pop=30,cross=0.8,mut=0.1,local_rate=0.1,tourn=3,elite=3,local_max=2,granular=7)",
     "config_large": "Large (pop=100,cross=0.8,mut=0.1,local_rate=0.1,tourn=4,elite=5,local_max=2,granular=15)",
-    "config_ultra": "Ultra (pop=5,cross=0.8,mut=0.1,local_rate=0.1,tourn=2,elite=1,local_max=2,granular=2)",
+    "config_fast": "Fast (pop=5,cross=0.8,mut=0.1,local_rate=0.1,tourn=2,elite=1,local_max=2,granular=2)",
     "config_explore": "Explore (pop=100,cross=0.95,mut=0.4,local_rate=0.25,tourn=2,elite=1,local_max=3,granular=15)",
     "config_balanced": "Balanced (pop=60,cross=0.85,mut=0.1,local_rate=0.1,tourn=3,elite=4,local_max=2,granular=12)",
     "config_tuned": "Tuned (params TBD — optimized via Optuna)",
@@ -86,12 +86,12 @@ CONFIG_LABELS = {
 
 # ── Compact labels for graph titles & legends (no visual clutter) ──────────
 CONFIG_SHORT_LABELS = {
-    "config_small": "Small (pop=10)",
-    "config_medium": "Medium (pop=30)",
-    "config_large": "Large (pop=100)",
-    "config_ultra": "Ultra (pop=5)",
-    "config_explore": "Explore (pop=100)",
-    "config_balanced": "Balanced (pop=60)",
+    "config_small": "Small",
+    "config_medium": "Medium)",
+    "config_large": "Large",
+    "config_fast": "Fast",
+    "config_explore": "Explore)",
+    "config_balanced": "Balanced",
     "config_tuned": "Tuned",
 }
 
@@ -1142,7 +1142,7 @@ def generate_plots(results_file: Path, imgs_dir: Path):
     ROUTES_DIR = imgs_dir / "routes"
     SUMMARY_DIR = imgs_dir / "summary"
 
-    # Derive config label from imgs_dir (e.g. docs/report/imgs/config_ultra -> "Ultra (pop=5)")
+    # Derive config label from imgs_dir (e.g. docs/report/imgs/config_fast -> "Fast (pop=5)")
     cfg_name = imgs_dir.name
     CONFIG_LABEL = CONFIG_SHORT_LABELS.get(
         cfg_name,
@@ -1227,7 +1227,7 @@ if __name__ == "__main__":
             if discovered:
                 results_file = discovered[0]
                 # Derive imgs path from results path
-                cfg_name = results_file.parent.name  # e.g. "config_ultra"
+                cfg_name = results_file.parent.name  # e.g. "config_fast"
                 imgs_dir = Path(f"../docs/report/imgs/{cfg_name}")
                 print(f"Auto-detected: --results {results_file}  --imgs {imgs_dir}")
             else:
