@@ -117,41 +117,42 @@ L'**HGA** (chiamato anche **Algoritmo Memetico**) unisce:
 
 ```mermaid
 graph TD
-    A[Popolazione Iniziale: NN + Savings + 98 Random] --> B[Loop Evolutivo]
-    B --> C[Selezione a Torneo]
-    C --> D[Crossover: Order Crossover - OX]
-    D --> E[Mutazione: Swap/Insert/Inversion]
+    A[Popolazione Iniziale: NN + Savings + 79 Random] --> B[Loop Evolutivo]
+    B --> C[Selezione a Torneo (k=4)]
+    C --> D[Crossover: Order Crossover - OX (p_c=0.675)]
+    D --> E[Mutazione: Swap/Insert/Inversion (p_m=0.236)]
     E --> F[Algoritmo di Split di Prins: Valutazione Fitness]
-    F --> G[Ricerca Locale al 10%: 2-Opt + Or-Opt + Relocate + Exchange]
-    G --> H[Elitismo e Aggiornamento Popolazione]
+    F --> G[Ricerca Locale (p_ls=0.259): 2-Opt + Or-Opt + Relocate + Exchange]
+    G --> H[Elitismo (e=4) e Aggiornamento Popolazione]
     H -->|Se valutazioni < 350.000| B
     H -->|Se valutazioni >= 350.000| I[Soluzione Ottima]
 ```
 
 ### Parametri e Protocollo Sperimentale (da Consegna)
-L'algoritmo è governato da una serie di parametri chiave, definiti nei file di configurazione YAML nella directory `config/`. Il progetto offre **7 varianti predefinite** (da Ultra a Tuned), ciascuna con parametri ottimizzati per un diverso profilo qualità/velocità. La variante **Tuned** è il risultato del tuning automatico con Optuna (vedi Sezione 9).
+L'algoritmo è governato da una serie di parametri chiave, definiti nei file di configurazione YAML nella directory `config/`. Il progetto offre **7 varianti predefinite** (da Fast a Tuned), ciascuna con parametri ottimizzati per un diverso profilo qualità/velocità. La variante **Tuned** è il risultato del tuning automatico con Optuna (vedi Sezione 9).
 
-*   **Dimensione della popolazione ($N = 100$)**: Definisce il numero di soluzioni candidate mantenute contemporaneamente in memoria. Una popolazione più ampia favorisce la diversità genetica ma aumenta il tempo di calcolo.
+*   **Dimensione della popolazione ($\mu = 81$, config\_tuned)**: Definisce il numero di soluzioni candidate mantenute contemporaneamente in memoria. Il tuning Optuna ha determinato 81 come dimensione ottimale (range testato: 5--100).
 *   **Valutazioni massime ($FE = 350.000$)**: Rappresenta il budget computazionale totale concesso all'HGA per ogni singola esecuzione. Il conteggio delle valutazioni viene incrementato a ogni invocazione del metodo di Split.
 *   **Numero di run indipendenti ($\text{runs} = 5$)**: Poiché l'HGA è un algoritmo stocastico, è necessario eseguire più run indipendenti per ciascuna istanza per raccogliere statistiche statisticamente significative (costo migliore, costo medio, deviazione standard).
-*   **Tasso di Crossover ($p_c = 0.8$)**: La probabilità con cui due genitori estratti dalla popolazione si incrociano (tramite Order Crossover - OX) per generare figli. Favorisce la trasmissione delle buone caratteristiche dei genitori alle generazioni successive.
-*   **Tasso di Mutazione ($p_m = 0.1$)**: La probabilità che un figlio subisca una mutazione casuale. Introduce elementi di disturbo che prevengono la convergenza prematura su ottimi locali sub-ottimali.
-*   **Tasso di Ricerca Locale ($p_{ls} = 0.1$)**: La probabilità che un figlio venga ottimizzato tramite i 4 operatori di ricerca locale. È il tasso di ibridazione che definisce l'algoritmo memetico.
-*   **Dimensione del torneo ($k = 3$)**: Il numero di candidati estratti a caso per sfidarsi nella selezione dei genitori. Controlla la pressione selettiva dell'algoritmo genetico.
-*   **Quota di Elitismo ($e = 5$)**: Il numero di individui migliori della generazione precedente che vengono copiati inalterati nella generazione successiva, garantendo la non-decrescenza della fitness ottima trovata.
+*   **Tasso di Crossover ($p_c = 0.675$, config\_tuned)**: La probabilità con cui due genitori estratti dalla popolazione si incrociano (tramite Order Crossover - OX) per generare figli. Il tuning ha prodotto un valore leggermente inferiore al default 0.8.
+*   **Tasso di Mutazione ($p_m = 0.236$, config\_tuned)**: La probabilità che un figlio subisca una mutazione casuale. Introduce elementi di disturbo che prevengono la convergenza prematura su ottimi locali sub-ottimali.
+*   **Tasso di Ricerca Locale ($p_{ls} = 0.259$, config\_tuned)**: La probabilità che un figlio venga ottimizzato tramite i 4 operatori di ricerca locale. È il tasso di ibridazione che definisce l'algoritmo memetico; il tuning ha aumentato significativamente questo valore rispetto al default 0.1.
+*   **Dimensione del torneo ($k = 4$, config\_tuned)**: Il numero di candidati estratti a caso per sfidarsi nella selezione dei genitori. Controlla la pressione selettiva dell'algoritmo genetico.
+*   **Quota di Elitismo ($e = 4$, config\_tuned)**: Il numero di individui migliori della generazione precedente che vengono copiati inalterati nella generazione successiva, garantendo la non-decrescenza della fitness ottima trovata.
+*   **Granularità della Ricerca Locale ($\gamma = 25$, config\_tuned)**: Il numero di vicini più prossimi considerati nella ricerca locale granulare (GLS). Il tuning ha quasi raddoppiato il valore rispetto al default 15, esplorando un vicinato inter-route più ampio.
 *   **Iterazioni massime di Ricerca Locale ($\text{max\_iter} = 2$)**: Limita la scansione degli operatori di ricerca locale inter-route (Relocate ed Exchange) per evitare cicli infiniti ed ottimizzazioni infinitesimali, massimizzando il rendimento globale del tempo CPU.
 
 ### 2.1 Varianti di Configurazione (Config Presets)
 
 | Config | Pop | Tourn | Elite | Granular | Crossover | Mutation | LS Rate | LS Iter | Profilo |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Ultra** | 5 | 2 | 1 | 2 | 0.80 | 0.10 | 0.10 | 2 | Velocissimo, bassa qualità |
+| **Fast** | 5 | 2 | 1 | 2 | 0.80 | 0.10 | 0.10 | 2 | Velocissimo, bassa qualità |
 | **Small** | 10 | 2 | 2 | 3 | 0.80 | 0.10 | 0.10 | 2 | Rapido, qualità accettabile |
 | **Medium** | 30 | 3 | 3 | 7 | 0.80 | 0.10 | 0.10 | 2 | Equilibrio velocità/qualità |
 | **Balanced** | 60 | 3 | 4 | 12 | 0.85 | 0.10 | 0.10 | 2 | Bilanciato, buona qualità |
 | **Large** | 100 | 4 | 5 | 15 | 0.80 | 0.10 | 0.10 | 2 | Migliore qualità, più lento |
 | **Explore** | 100 | 2 | 1 | 15 | 0.95 | 0.40 | 0.25 | 3 | Esplorazione aggressiva |
-| **Tuned** | — | — | — | — | — | — | — | — | Ottimizzato da Optuna (§9) |
+| **Tuned** | 81 | 4 | 4 | 25 | 0.675 | 0.236 | 0.259 | 2 | Ottimizzato da Optuna ⭐ (§9) |
 
 ---
 
@@ -177,14 +178,14 @@ dove $V(j)$ rappresenta il costo ottimale per servire i primi $j$ clienti della 
 
 ## 4. Generazione della Popolazione Iniziale
 
-La popolazione iniziale contiene 100 soluzioni:
+La popolazione iniziale contiene 81 soluzioni:
 1.  **1 soluzione** creata tramite l'euristica **Nearest Neighbor**:
     *   Partendo dal deposito, aggiunge ad ogni passo il cliente più vicino non ancora visitato che non viola la capacità residua. Se la capacità viene superata, il veicolo torna al deposito e un nuovo veicolo ricomincia il ciclo.
 2.  **1 soluzione** creata tramite l'euristica **Savings (Clarke & Wright)**:
     *   Inizializza ciascun cliente in una rotta dedicata $0 \to i \to 0$.
     *   Calcola i risparmi energetici (savings) ottenuti unendo le rotte di $i$ e $j$: $s_{ij} = c_{i0} + c_{0j} - c_{ij}$.
     *   Ordina i risparmi in modo decrescente e unisce le rotte compatibili con il limite di capacità $Q$.
-3.  **98 soluzioni** create tramite **Permutazioni Casuali**:
+3.  **79 soluzioni** create tramite **Permutazioni Casuali**:
     *   I clienti vengono mescolati in modo casuale per garantire la massima varietà genetica.
 
 Tutte queste permutazioni vengono poi passate all'algoritmo di Split per valutarne la fitness originaria.
@@ -194,8 +195,8 @@ Tutte queste permutazioni vengono poi passate all'algoritmo di Split per valutar
 ## 5. Operatori Genetici
 
 ### Selezione
-Viene utilizzata la **Selezione a Torneo (Tournament Selection)** con dimensione $k = 3$.
-Si scelgono a caso 3 individui dalla popolazione e si seleziona quello con la fitness (costo) minore. Questo metodo offre un ottimo equilibrio tra pressione selettiva (far evolvere i migliori) e mantenimento della diversità genetica.
+Viene utilizzata la **Selezione a Torneo (Tournament Selection)** con dimensione $k = 4$.
+Si scelgono a caso 4 individui dalla popolazione e si seleziona quello con la fitness (costo) minore. Questo metodo offre un ottimo equilibrio tra pressione selettiva (far evolvere i migliori) e mantenimento della diversità genetica.
 
 ### Crossover: Order Crossover (OX)
 L'Order Crossover è l'operatore ideale per le permutazioni perché preserva l'ordine relativo dei nodi evitando duplicati.
@@ -204,7 +205,7 @@ L'Order Crossover è l'operatore ideale per le permutazioni perché preserva l'o
 3.  Le posizioni rimanenti del figlio vengono riempite scorrendo in senso orario gli elementi del secondo genitore (a partire dal secondo punto di taglio), saltando i nodi già ereditati.
 
 ### Mutazione
-Per evitare la convergenza prematura, il $10\%$ dei figli subisce una mutazione. L'operatore di mutazione viene scelto a caso tra:
+Per evitare la convergenza prematura, il $\sim 24\%$ dei figli subisce una mutazione ($p_m = 0.236$ nella configurazione Tuned). L'operatore di mutazione viene scelto a caso tra:
 *   **Swap Mutation** ($40\%$ delle volte): Scambia di posizione due clienti scelti a caso nel cromosoma.
 *   **Insert Mutation** ($30\%$ delle volte): Rimuove un cliente da una posizione e lo inserisce in un'altra.
 *   **Inversion Mutation** ($30\%$ delle volte): Inverte l'ordine di un intero segmento casuale del cromosoma.
@@ -213,7 +214,15 @@ Per evitare la convergenza prematura, il $10\%$ dei figli subisce una mutazione.
 
 ## 6. Ricerca Locale (Local Search)
 
-La ricerca locale opera su una soluzione per migliorarla fino ad un ottimo locale. Nel nostro HGA, viene applicata con una probabilità del $10\%$ sui nuovi figli ed esegue in sequenza quattro operatori:
+Tutti e quattro gli operatori sono implementati con strategia **steepest descent**
+(best improvement): ad ogni iterazione viene valutato l'intero vicinato e viene
+applicata la mossa che produce il miglioramento maggiore, anziché accettare il
+primo miglioramento trovato (first improvement). Questa scelta privilegia la
+qualità della soluzione rispetto alla velocità di esecuzione, ed è particolarmente
+efficace quando combinata con la ricerca locale granulare che riduce drasticamente
+la dimensione del vicinato da esplorare.
+
+La ricerca locale opera su una soluzione per migliorarla fino ad un ottimo locale. Nel nostro HGA, viene applicata con una probabilità del $\sim 26\%$ ($p_{ls} = 0.259$ nella configurazione Tuned) sui nuovi figli ed esegue in sequenza quattro operatori:
 
 ### Intra-Route (Ottimizzazione all'interno della stessa rotta)
 1.  **2-opt**: Rimuove due archi non adiacenti della rotta e ricollega i nodi invertendo il segmento compreso tra essi. Serve a eliminare gli incroci di percorsi.
@@ -229,7 +238,25 @@ La ricerca locale opera su una soluzione per migliorarla fino ad un ottimo local
 
 ## 7. Dettagli di Ottimizzazione del Codice (Performance)
 
-Per rendere fattibile l'esecuzione di 350.000 valutazioni in tempi ragionevoli su CPU, sono state implementate tre ottimizzazioni fondamentali:
+Per rendere fattibile l'esecuzione di 350.000 valutazioni in tempi ragionevoli su CPU (fino a oltre 6.900 valutazioni al secondo per core), sono state implementate numerose ottimizzazioni:
+
+1.  **Compilazione JIT con Numba**:
+    Le funzioni a maggior impatto computazionale (`split_numba`, `two_opt_numba`, `or_opt_numba` e `order_crossover_numba`) sono state implementate in moduli ottimizzati e decorate con `@jit(nopython=True)` di Numba. Numba traduce queste funzioni direttamente in codice macchina ottimizzato per la CPU al primo avvio, garantendo prestazioni vicine a quelle di un codice scritto in C.
+2.  **Valutazioni dei Costi Delta (Delta Cost Evaluation)**:
+    Nelle funzioni di ricerca locale inter-route (`Relocate` e `Exchange`), per valutare se uno spostamento è vantaggioso, non ricalcoliamo la lunghezza di tutte le rotte. Calcoliamo solo il costo prima e dopo delle 2 rotte modificate:
+    $$\Delta = (\text{costo}_{\text{A, dopo}} + \text{costo}_{\text{B, dopo}}) - (\text{costo}_{\text{A, prima}} + \text{costo}_{\text{B, prima}})$$
+    Questo trasforma un'operazione $O(N)$ (dove $N$ è la dimensione del problema) in un'operazione $O(K)$ (dove $K$ è la lunghezza media di una singola rotta, tipicamente $< 10$ nodi).
+3.  **Pre-calcolo $O(1)$ dei Carichi delle Route**: Sostituisce il ricalcolo continuo dei carichi delle route ($O(N)$) durante le scansioni di ricerca locale inter-route (`_relocate` e `_exchange`) con vettori pre-calcolati e aggiornati in tempo costante a ogni mossa applicata.
+4.  **Tracciamento delle Mosse Solo per Indici**: Elimina l'operazione di deep-copy nel ciclo interno della ricerca locale. I vicinati valutano i delta teorici in $O(1)$ e la mossa fisica viene applicata in-place solo alla fine del ciclo, esclusivamente se è stato trovato un miglioramento. Questo evita allocazioni di memoria e copie inutili.
+5.  **Educazione a Doppio Livello (Light/Full)**:
+    - *Educazione leggera*: il 2-opt compilato JIT con Numba viene applicato a **tutti** i figli generati a ogni iterazione, garantendo l'immediata eliminazione degli incroci di route a basso costo computazionale.
+    - *Ricerca Locale Completa*: gli operatori inter-route completi (Relocate, Exchange) vengono eseguiti solo al tasso stocastico configurato ($p_{ls} = 0.259$ nella configurazione Tuned), evitando di sprecare budget computazionale su individui poco promettenti.
+6.  **Rilevamento Duplicati (Survivor Selection)**: Cloni con costo identico (arrotondato alla terza cifra decimale) vengono rilevati e sostituiti con individui casuali pre-educati a ogni generazione, massimizzando la diversità e prevenendo la convergenza prematura.
+7.  **Micro-ottimizzazioni dei Generatori**: Sostituzione di `random.sample(range(n), 2)` e dell'ordinamento Python con offset matematici diretti per l'estrazione dei punti di taglio OX e degli indici di mutazione. Percorso rapido dedicato per il torneo con $k=2$.
+8.  **Mutazioni In-Place**:
+    Invece di creare copie di liste ad ogni tentativo di mossa (che causava rallentamenti nella gestione della memoria), le mosse vengono tentate modificando le liste di rotte originali "in-place" e ripristinandole immediatamente dopo il calcolo del costo (backtracking). La copia della lista avviene solo quando la mossa viene effettivamente accettata come migliore.
+9.  **Limite alle Iterazioni di Ricerca Locale (`max_iter = 2`)**:
+    Limitando le iterazioni dei cicli di ricerca locale a un massimo di 2 passate per chiamata, evitiamo che l'algoritmo perda tempo prezioso a inseguire miglioramenti infinitesimali su singoli individui, massimizzando il rendimento globale dell'evoluzione del pool genetico.
 
 1.  **Compilazione JIT con Numba**:
     Le funzioni a maggior impatto computazionale (`split_numba`, `two_opt_numba` e `or_opt_numba`) sono state implementate in moduli ottimizzati e decorate con `@jit(nopython=True)` di Numba. Numba traduce queste funzioni direttamente in codice macchina ottimizzato per la CPU al primo avvio, garantendo prestazioni vicine a quelle di un codice scritto in C.
@@ -385,14 +412,16 @@ bash cluster/setup.sh
 Lancia in sequenza per ogni variante di configurazione:
 1. **Esperimenti** (`run_experiments.py`) — tutte le 10 istanze, 5 run × 350K FE
 2. **Grafici** (`plot_convergence.py`) — convergenza, rotte, radar, confronto config
-3. **Tabella LaTeX** (`format_latex.py`) — tabella formattata per il report
+3. **Tabella LaTeX per-config** (`format_latex.py`) — tabella formattata per il report
+4. **Tabella comparativa** (`format_latex.py`) — confronto tra tutte le config
+5. **Grafico comparativo** (`plot_convergence.py --comparison-only`) — generato una volta sola con tutti i dati
 
 ```bash
 # Tutti i config
 sbatch cluster/run.sh
 
 # Singolo config
-sbatch cluster/run.sh config_large
+sbatch cluster/run.sh config_tuned
 ```
 
 ### 10.3 Pipeline Tuning (`cluster/tune.sh`)
