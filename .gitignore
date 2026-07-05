@@ -1,8 +1,10 @@
 .venv/
 node_modules/
+dist/
 reference/
 
 *.pyc
+*.tsbuildinfo
 __pycache__/
 .ruff_cache/
 

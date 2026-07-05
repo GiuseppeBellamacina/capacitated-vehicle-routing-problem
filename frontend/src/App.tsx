@@ -165,7 +165,7 @@ function RouteCanvas({ coords, demands, capacity, routes, instanceName }: RouteC
 
     const w = rect.width;
     const h = rect.height;
-    const padding = 60;
+    const padding = 20;
 
     // ── Square viewport (uniform aspect ratio) ─────────────────────────
     const size = Math.min(w, h);
@@ -715,7 +715,6 @@ function App() {
   const [staleSeconds, setStaleSeconds] = useState(0);
   const [expandedPanel, setExpandedPanel] = useState<string>("convergence");
   const [advancedExpanded, setAdvancedExpanded] = useStoredBool("ui.advancedExpanded", false);
-  const [logs, setLogs] = useState<string[]>([]);
   const rightPanelRef = useRef<HTMLDivElement>(null);
 
   function togglePanel(panel: string) {
@@ -723,7 +722,7 @@ function App() {
   }
 
   function addLog(msg: string) {
-    setLogs(prev => [...prev.slice(-50), msg]);
+    console.log(`[Solver Log] ${msg}`);
   }
 
   const eta =
@@ -909,7 +908,6 @@ function App() {
     setElapsedTime(0);
     startTimeRef.current = Date.now();
     setProgress(0);
-    setLogs([]);
     lastUpdateRef.current = Date.now();
     setStaleSeconds(0);
     addLog(`Starting experiment on ${selectedInstance}...`);
@@ -1267,12 +1265,6 @@ function App() {
         </span>
       </div>
 
-      {/* Log */}
-      <div className="log-area">
-        {logs.map((line, i) => (
-          <div key={i} className="log-entry">{line}</div>
-        ))}
-      </div>
     </>
   );
 }
