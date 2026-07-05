@@ -15,9 +15,7 @@ from cvrp.utils import discover_config_results
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="LaTeX table formatter for CVRP results"
-    )
+    parser = argparse.ArgumentParser(description="LaTeX table formatter for CVRP results")
     sub = parser.add_subparsers(dest="command", help="Output mode")
 
     # --table subcommand
@@ -147,7 +145,7 @@ def format_comparison_table(output_file: Path | None = None):
     lines.append(r"\begin{table}[htbp]")
     lines.append(r"  \centering")
     lines.append(
-        r"  \caption{Config variant comparison — best solution cost and gap from BKS}"
+        r"  \caption{Confronto tra varianti di configurazione — costo della soluzione migliore e gap dal BKS}"
     )
     lines.append(r"  \label{tab:config-comparison}")
     lines.append(r"  \resizebox{\textwidth}{!}{")
@@ -257,7 +255,5 @@ if __name__ == "__main__":
         format_comparison_table(out_path)
     else:
         print("Error: you must specify a subcommand.")
-        print(
-            "Example:  python format_latex.py table --results ../results/results.json"
-        )
+        print("Example:  python format_latex.py table --results ../results/results.json")
         print("Example:  python format_latex.py comparison")

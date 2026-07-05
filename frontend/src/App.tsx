@@ -76,6 +76,7 @@ type WsMessage =
 
 interface Preset {
   label: string;
+  description: string;
   variant: "best" | "accent" | "small-preset" | "warning" | "danger" | "balanced" | "tuned";
   population_size: number;
   tournament_size: number;
@@ -89,37 +90,37 @@ interface Preset {
 
 const PRESETS: Record<string, Preset> = {
   tuned: {
-    label: "★ Tuned", variant: "tuned",
+    label: "★ Tuned", description: "Ottimale", variant: "tuned",
     population_size: 81, tournament_size: 4, elite_count: 4, granular_size: 25,
     mutation_rate: 0.236, crossover_rate: 0.675, local_search_rate: 0.259, local_search_max_iter: 10,
   },
   large: {
-    label: "Large", variant: "best",
+    label: "Large", description: "Qualità", variant: "best",
     population_size: 100, tournament_size: 4, elite_count: 5, granular_size: 15,
     mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
   },
   balanced: {
-    label: "Balanced", variant: "balanced",
+    label: "Balanced", description: "Equilibrio", variant: "balanced",
     population_size: 60, tournament_size: 3, elite_count: 4, granular_size: 12,
     mutation_rate: 0.1, crossover_rate: 0.85, local_search_rate: 0.1, local_search_max_iter: 2,
   },
   medium: {
-    label: "Medium", variant: "accent",
+    label: "Medium", description: "Medio", variant: "accent",
     population_size: 30, tournament_size: 3, elite_count: 3, granular_size: 7,
     mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
   },
   small: {
-    label: "Small", variant: "small-preset",
+    label: "Small", description: "Leggero", variant: "small-preset",
     population_size: 10, tournament_size: 2, elite_count: 2, granular_size: 3,
     mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
   },
   fast: {
-    label: "Fast", variant: "warning",
+    label: "Fast", description: "Velocità", variant: "warning",
     population_size: 5, tournament_size: 2, elite_count: 1, granular_size: 2,
     mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
   },
   explore: {
-    label: "Explore", variant: "danger",
+    label: "Explore", description: "Esplora", variant: "danger",
     population_size: 100, tournament_size: 2, elite_count: 1, granular_size: 15,
     mutation_rate: 0.4, crossover_rate: 0.95, local_search_rate: 0.25, local_search_max_iter: 3,
   },
@@ -621,23 +622,6 @@ function Collapsible({ expanded, children }: { expanded: boolean; children: Reac
   );
 }
 
-// --- Toggle Button Component ---
-
-function ToggleButton({ expanded, onToggle, label }: { expanded: boolean; onToggle: () => void; label: string }) {
-  return (
-    <button
-      className={`card-toggle${expanded ? " open" : ""}`}
-      onClick={onToggle}
-      title={expanded ? "Collapse" : "Expand"}
-      aria-label={expanded ? `Collapse ${label}` : `Expand ${label}`}
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    </button>
-  );
-}
-
 // --- Run Bars Component ---
 
 function RunBars({ totalRuns, currentRun, completedRuns, progress }: { totalRuns: number; currentRun: number; completedRuns: number[]; progress: number }) {
@@ -729,12 +713,13 @@ function App() {
   const lastUpdateRef = useRef<number>(0);
 
   const [staleSeconds, setStaleSeconds] = useState(0);
-  const [paramsExpanded, setParamsExpanded] = useStoredBool("ui.paramsExpanded", false);
+  const [expandedPanel, setExpandedPanel] = useState<string>("convergence");
   const [advancedExpanded, setAdvancedExpanded] = useStoredBool("ui.advancedExpanded", false);
-  const [routesExpanded, setRoutesExpanded] = useStoredBool("ui.routesExpanded", true);
-  const [statsExpanded, setStatsExpanded] = useStoredBool("ui.statsExpanded", true);
-  const [convExpanded, setConvExpanded] = useStoredBool("ui.convExpanded", true);
   const [logs, setLogs] = useState<string[]>([]);
+
+  function togglePanel(panel: string) {
+    setExpandedPanel(prev => prev === panel ? "" : panel);
+  }
 
   function addLog(msg: string) {
     setLogs(prev => [...prev.slice(-50), msg]);
@@ -1015,7 +1000,8 @@ function App() {
               disabled={running}
               title={`μ=${p.population_size}  k=${p.tournament_size}  e=${p.elite_count}  γ=${p.granular_size}  pc=${p.crossover_rate}  pm=${p.mutation_rate}`}
             >
-              {activePreset === key ? p.label : p.label.replace("★ ", "")}
+              <span className="preset-label">{activePreset === key ? p.label : p.label.replace("★ ", "")}</span>
+              <span className="preset-desc">{p.description}</span>
             </button>
           ))}
           </div>
@@ -1061,7 +1047,7 @@ function App() {
 
       <div className="main-grid">
         {/* Route Visualization */}
-        <div className="card" style={{ gridRow: "span 4" }}>
+        <div className="card">
           <div className="card-header">
             <h2>Route Visualization</h2>
             {currentRoutes && (
@@ -1077,131 +1063,146 @@ function App() {
           />
         </div>
 
-        {/* Convergence Chart */}
-        <div className="card">
-          <div className="card-header">
-            <h2>Convergence</h2>
-            <ToggleButton expanded={convExpanded} onToggle={() => setConvExpanded(!convExpanded)} label="convergence" />
-          </div>
-          <Collapsible expanded={convExpanded}>
-          <ConvergenceChart data={liveConvergence.length > 0 ? liveConvergence : (results?.convergence ?? [])} />
-          </Collapsible>
-        </div>
-
-        {/* Stats */}
-        <div className="card">
-          <div className="card-header">
-            <h2>Statistics</h2>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {results && <span className="badge badge-success">Complete</span>}
-              {running && <span className="badge badge-warning">Running</span>}
-              <ToggleButton expanded={statsExpanded} onToggle={() => setStatsExpanded(!statsExpanded)} label="statistics" />
+        {/* Right Panel: Accordion Cards */}
+        <div className="right-panel">
+          {/* Convergence Chart */}
+          <div className={`card${expandedPanel === "convergence" ? " expanded" : ""}`}>
+            <div className="card-header" onClick={() => togglePanel("convergence")}>
+              <h2>Convergence</h2>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+                className={`card-toggle-icon${expandedPanel === "convergence" ? " open" : ""}`}>
+                <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </div>
-          </div>
-          <Collapsible expanded={statsExpanded}>
-          <StatsPanel results={liveResults} optimal={selectedOptimal} />
-
-          {results?.runs && results.runs.length > 0 && (
-            <div style={{ marginTop: 4, fontSize: "0.72rem", color: "var(--text-muted)" }}>
-              Per-run: {results.runs.map(c => Math.round(c)).join(", ")}
-            </div>
-          )}
-          {results?.generations_to_best && (
-            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-              Gens to best: {results.generations_to_best.map(g => g).join(", ")}
-            </div>
-          )}
-          </Collapsible>
-        </div>
-
-        {/* Route Details */}
-        <div className="card">
-          <div className="card-header">
-            <h2>Route Details</h2>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {currentRoutes && (
-                <span className="badge badge-purple">{currentRoutes.length} vehicles</span>
-              )}
-              <ToggleButton expanded={routesExpanded} onToggle={() => setRoutesExpanded(!routesExpanded)} label="route details" />
-            </div>
-          </div>
-          <Collapsible expanded={routesExpanded}>
-          <RouteDetails routes={currentRoutes ?? results?.routes ?? null} demands={demands} capacity={capacity} />
-          </Collapsible>
-        </div>
-
-        {/* HGA Parameters */}
-        <div className="card">
-          <div className="card-header">
-            <h2>HGA Parameters</h2>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span className="badge badge-accent">{activePreset ? activePreset.toUpperCase() : "CUSTOM"}</span>
-              <ToggleButton expanded={paramsExpanded} onToggle={() => setParamsExpanded(!paramsExpanded)} label="parameters" />
-            </div>
-          </div>
-          <Collapsible expanded={paramsExpanded}>
-          {/* Core parameters — always visible when expanded */}
-          <div className="params-grid">
-            <div className="param-field">
-              <label>Population</label>
-              <input type="number" value={popSize} onChange={e => { setPopSize(Math.max(2, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-            </div>
-            <div className="param-field">
-              <label>Tournament</label>
-              <input type="number" value={tournamentSize} onChange={e => { setTournamentSize(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-            </div>
-            <div className="param-field">
-              <label>Elite</label>
-              <input type="number" value={eliteCount} onChange={e => { setEliteCount(Math.max(0, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-            </div>
-            <div className="param-field">
-              <label>Granular (GLS)</label>
-              <input type="number" value={granularSize} onChange={e => { setGranularSize(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-            </div>
+            <Collapsible expanded={expandedPanel === "convergence"}>
+            <ConvergenceChart data={liveConvergence.length > 0 ? liveConvergence : (results?.convergence ?? [])} />
+            </Collapsible>
           </div>
 
-          {/* Advanced — collapsible sub-section */}
-          <button
-            className={`advanced-toggle${advancedExpanded ? " open" : ""}`}
-            onClick={() => setAdvancedExpanded(!advancedExpanded)}
-            aria-expanded={advancedExpanded}
-            aria-label={advancedExpanded ? "Collapse advanced parameters" : "Expand advanced parameters"}
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Advanced
-          </button>
+          {/* Stats */}
+          <div className={`card${expandedPanel === "statistics" ? " expanded" : ""}`}>
+            <div className="card-header" onClick={() => togglePanel("statistics")}>
+              <h2>Statistics</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {results && <span className="badge badge-success">Complete</span>}
+                {running && <span className="badge badge-warning">Running</span>}
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+                  className={`card-toggle-icon${expandedPanel === "statistics" ? " open" : ""}`}>
+                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
+            <Collapsible expanded={expandedPanel === "statistics"}>
+            <StatsPanel results={liveResults} optimal={selectedOptimal} />
 
-          {advancedExpanded && (
-          <div className="params-grid">
-            <div className="param-field">
-              <label>Crossover</label>
-              <input type="number" step="0.05" min="0" max="1" value={crossoverRate} onChange={e => { setCrossoverRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
-            </div>
-            <div className="param-field">
-              <label>Mutation</label>
-              <input type="number" step="0.05" min="0" max="1" value={mutationRate} onChange={e => { setMutationRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
-            </div>
-            <div className="param-field">
-              <label>LS Rate</label>
-              <input type="number" step="0.05" min="0" max="1" value={lsRate} onChange={e => { setLsRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
-            </div>
-            <div className="param-field">
-              <label>LS Max Iter</label>
-              <input type="number" value={lsMaxIter} onChange={e => { setLsMaxIter(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-            </div>
-            <div className="param-field">
-              <label>Max Evaluations</label>
-              <input type="number" value={maxEvals} onChange={e => { setMaxEvals(Math.max(10, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-            </div>
-            <div className="param-field">
-              <label>Runs</label>
-              <input type="number" value={numRuns} onChange={e => { setNumRuns(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-            </div>
+            {results?.runs && results.runs.length > 0 && (
+              <div style={{ marginTop: 4, fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                Per-run: {results.runs.map(c => Math.round(c)).join(", ")}
+              </div>
+            )}
+            {results?.generations_to_best && (
+              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                Gens to best: {results.generations_to_best.map(g => g).join(", ")}
+              </div>
+            )}
+            </Collapsible>
           </div>
-          )}
-          </Collapsible>
+
+          {/* Route Details */}
+          <div className={`card${expandedPanel === "routes" ? " expanded" : ""}`}>
+            <div className="card-header" onClick={() => togglePanel("routes")}>
+              <h2>Route Details</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {currentRoutes && (
+                  <span className="badge badge-purple">{currentRoutes.length} vehicles</span>
+                )}
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+                  className={`card-toggle-icon${expandedPanel === "routes" ? " open" : ""}`}>
+                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
+            <Collapsible expanded={expandedPanel === "routes"}>
+            <RouteDetails routes={currentRoutes ?? results?.routes ?? null} demands={demands} capacity={capacity} />
+            </Collapsible>
+          </div>
+
+          {/* HGA Parameters */}
+          <div className={`card${expandedPanel === "params" ? " expanded" : ""}`}>
+            <div className="card-header" onClick={() => togglePanel("params")}>
+              <h2>HGA Parameters</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="badge badge-accent">{activePreset ? activePreset.toUpperCase() : "CUSTOM"}</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+                  className={`card-toggle-icon${expandedPanel === "params" ? " open" : ""}`}>
+                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
+            <Collapsible expanded={expandedPanel === "params"}>
+            {/* Core parameters — always visible when expanded */}
+            <div className="params-grid">
+              <div className="param-field">
+                <label>Population</label>
+                <input type="number" value={popSize} onChange={e => { setPopSize(Math.max(2, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+              </div>
+              <div className="param-field">
+                <label>Tournament</label>
+                <input type="number" value={tournamentSize} onChange={e => { setTournamentSize(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+              </div>
+              <div className="param-field">
+                <label>Elite</label>
+                <input type="number" value={eliteCount} onChange={e => { setEliteCount(Math.max(0, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+              </div>
+              <div className="param-field">
+                <label>Granular (GLS)</label>
+                <input type="number" value={granularSize} onChange={e => { setGranularSize(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+              </div>
+            </div>
+
+            {/* Advanced — collapsible sub-section */}
+            <button
+              className={`advanced-toggle${advancedExpanded ? " open" : ""}`}
+              onClick={(e) => { e.stopPropagation(); setAdvancedExpanded(!advancedExpanded); }}
+              aria-expanded={advancedExpanded}
+              aria-label={advancedExpanded ? "Collapse advanced parameters" : "Expand advanced parameters"}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Advanced
+            </button>
+
+            {advancedExpanded && (
+            <div className="params-grid">
+              <div className="param-field">
+                <label>Crossover</label>
+                <input type="number" step="0.05" min="0" max="1" value={crossoverRate} onChange={e => { setCrossoverRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
+              </div>
+              <div className="param-field">
+                <label>Mutation</label>
+                <input type="number" step="0.05" min="0" max="1" value={mutationRate} onChange={e => { setMutationRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
+              </div>
+              <div className="param-field">
+                <label>LS Rate</label>
+                <input type="number" step="0.05" min="0" max="1" value={lsRate} onChange={e => { setLsRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
+              </div>
+              <div className="param-field">
+                <label>LS Max Iter</label>
+                <input type="number" value={lsMaxIter} onChange={e => { setLsMaxIter(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+              </div>
+              <div className="param-field">
+                <label>Max Evaluations</label>
+                <input type="number" value={maxEvals} onChange={e => { setMaxEvals(Math.max(10, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+              </div>
+              <div className="param-field">
+                <label>Runs</label>
+                <input type="number" value={numRuns} onChange={e => { setNumRuns(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+              </div>
+            </div>
+            )}
+            </Collapsible>
+          </div>
         </div>
       </div>
 
@@ -1231,7 +1232,7 @@ function App() {
       </div>
 
       {/* Log */}
-      <div className="log-area" style={{ padding: "8px 24px" }}>
+      <div className="log-area">
         {logs.map((line, i) => (
           <div key={i} className="log-entry">{line}</div>
         ))}

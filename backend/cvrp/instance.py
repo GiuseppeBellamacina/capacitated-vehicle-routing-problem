@@ -50,9 +50,7 @@ def get_representative_instances(
 
     # Sort each group by node count (numeric, not alphabetical)
     for key in groups:
-        groups[key].sort(
-            key=lambda n: int(m.group(1)) if (m := re.search(r"-n(\d+)-", n)) else 0
-        )
+        groups[key].sort(key=lambda n: int(m.group(1)) if (m := re.search(r"-n(\d+)-", n)) else 0)
 
     sorted_keys = sorted(groups.keys())
     representatives: list[str] = []

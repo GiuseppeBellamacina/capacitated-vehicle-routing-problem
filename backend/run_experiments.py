@@ -40,9 +40,7 @@ def load_config(config_path: str) -> dict:
         print(f"Error: invalid YAML in config file '{path}':\n{e}")
         sys.exit(1)
     if not isinstance(config, dict):
-        print(
-            f"Error: config file '{path}' is empty or does not contain a YAML mapping."
-        )
+        print(f"Error: config file '{path}' is empty or does not contain a YAML mapping.")
         sys.exit(1)
     return config
 
@@ -117,9 +115,7 @@ def run_instance(instance_name: str, config: dict, max_evals: int, runs: int) ->
 
         gap_str = ""
         if instance.optimal_value:
-            gap = (
-                (solution.cost - instance.optimal_value) / instance.optimal_value
-            ) * 100
+            gap = ((solution.cost - instance.optimal_value) / instance.optimal_value) * 100
             gap_str = f"gap={gap:.2f}%"
 
         run_bar.write(
@@ -137,7 +133,9 @@ def run_instance(instance_name: str, config: dict, max_evals: int, runs: int) ->
 
     gap_to_optimal = ""
     if instance.optimal_value:
-        gap_to_optimal = f"{((best_cost - instance.optimal_value) / instance.optimal_value) * 100:.2f}%"
+        gap_to_optimal = (
+            f"{((best_cost - instance.optimal_value) / instance.optimal_value) * 100:.2f}%"
+        )
 
     print(f"\n  Results for {instance_name}:")
     print(f"    Optimal:  {instance.optimal_value}")

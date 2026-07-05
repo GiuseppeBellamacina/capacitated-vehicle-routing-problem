@@ -28,6 +28,7 @@ INSTANCES_DIR = Path(__file__).parent.parent / "instances"
 # WebSocket connections and cancellation events
 active_connections: dict[str, WebSocket] = {}
 cancel_events: dict[str, asyncio.Event] = {}
+running_tasks: dict[str, asyncio.Task] = {}
 
 
 def get_available_instances() -> list[dict[str, Any]]:
@@ -106,9 +107,7 @@ async def run_algorithm_with_callback(
     for run_idx in range(runs):
         # Check cancellation before each run
         if cancel_event and cancel_event.is_set():
-            await websocket.send_json(
-                {"type": "experiment_cancelled", "completed_runs": run_idx}
-            )
+            await websocket.send_json({"type": "experiment_cancelled", "completed_runs": run_idx})
             return
 
         await websocket.send_json(
@@ -135,9 +134,7 @@ async def run_algorithm_with_callback(
             while not stop_event.is_set():
                 try:
                     msg = await asyncio.wait_for(progress_queue.get(), timeout=0.1)
-                    await websocket.send_json(
-                        {"type": "progress", "run": current_run, **msg}
-                    )
+                    await websocket.send_json({"type": "progress", "run": current_run, **msg})
                 except asyncio.TimeoutError:
                     continue
 
@@ -157,6 +154,7 @@ async def run_algorithm_with_callback(
                 local_search_max_iter=cfg.get("local_search_max_iter", 2),
                 granular_size=cfg.get("granular_size", 15),
                 callback=callback,
+                cancel_check=cancel_event.is_set if cancel_event else None,
                 seed=run_idx * 42 + 12345,
             )
 
@@ -171,9 +169,7 @@ async def run_algorithm_with_callback(
             while not progress_queue.empty():
                 try:
                     msg = progress_queue.get_nowait()
-                    await websocket.send_json(
-                        {"type": "progress", "run": run_idx + 1, **msg}
-                    )
+                    await websocket.send_json({"type": "progress", "run": run_idx + 1, **msg})
                 except asyncio.QueueEmpty:
                     break
         finally:
@@ -251,10 +247,14 @@ async def websocket_endpoint(websocket: WebSocket):
             action = data.get("action")
 
             if action == "run":
+                # Cancel any previous run for this client
+                if client_id in running_tasks and not running_tasks[client_id].done():
+                    running_tasks[client_id].cancel()
+                    if client_id in cancel_events:
+                        cancel_events[client_id].set()
+
                 discovered = discover_instances()
-                instance_name = data.get(
-                    "instance", discovered[0] if discovered else "A-n45-k7"
-                )
+                instance_name = data.get("instance", discovered[0] if discovered else "A-n45-k7")
                 max_evals = data.get("max_evals", 350_000)
                 runs = data.get("runs", 5)
                 hga_config = {
@@ -269,14 +269,24 @@ async def websocket_endpoint(websocket: WebSocket):
                 }
                 # Create a fresh cancel event for this run
                 cancel_events[client_id] = asyncio.Event()
-                await run_algorithm_with_callback(
-                    websocket,
-                    instance_name,
-                    max_evals,
-                    runs,
-                    hga_config,
-                    cancel_events[client_id],
+                task = asyncio.create_task(
+                    run_algorithm_with_callback(
+                        websocket,
+                        instance_name,
+                        max_evals,
+                        runs,
+                        hga_config,
+                        cancel_events[client_id],
+                    )
                 )
+
+                def _log_done(t: asyncio.Task) -> None:
+                    exc = t.exception()
+                    if exc:
+                        print(f"[Task] Experiment task finished with error: {exc}")
+
+                task.add_done_callback(_log_done)
+                running_tasks[client_id] = task
             elif action == "stop":
                 cancel_event = cancel_events.get(client_id)
                 if cancel_event:
@@ -289,8 +299,14 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
+        # Set cancel event and cancel any running task for this client
+        cancel_event = cancel_events.pop(client_id, None)
+        if cancel_event:
+            cancel_event.set()
+        task = running_tasks.pop(client_id, None)
+        if task and not task.done():
+            task.cancel()
         active_connections.pop(client_id, None)
-        cancel_events.pop(client_id, None)
 
 
 @app.get("/api/health")

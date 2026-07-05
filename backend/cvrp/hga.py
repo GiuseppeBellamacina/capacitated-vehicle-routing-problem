@@ -61,6 +61,7 @@ class HybridGeneticAlgorithm:
         granular_size: int = 15,
         seed: int | None = None,
         callback: Callable[[dict], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ):
         self.instance = instance
         self.population_size = population_size
@@ -74,6 +75,7 @@ class HybridGeneticAlgorithm:
         self.granular_size = granular_size
         self.use_granular_search = granular_size > 0
         self.callback = callback
+        self.cancel_check = cancel_check
 
         if seed is not None:
             random.seed(seed)
@@ -104,9 +106,7 @@ class HybridGeneticAlgorithm:
             return neighborhoods
         for i in self.customers:
             # Sort other customers by distance
-            sorted_neighbors = sorted(
-                self.customers, key=lambda j: self.dist_matrix[i][j]
-            )
+            sorted_neighbors = sorted(self.customers, key=lambda j: self.dist_matrix[i][j])
             # Filter out self
             sorted_neighbors = [j for j in sorted_neighbors if j != i]
             # Take the top granular_size neighbors
@@ -175,25 +175,18 @@ class HybridGeneticAlgorithm:
                 for node in smallest:
                     placed = False
                     for route in routes:
-                        if (
-                            route_demand(route, self.demands) + self.demands[node]
-                            <= self.capacity
-                        ):
+                        if route_demand(route, self.demands) + self.demands[node] <= self.capacity:
                             route.append(node)
                             placed = True
                             break
                     if not placed:
                         # Force into route with most remaining capacity (slightly infeasible)
-                        best_route = min(
-                            routes, key=lambda r: route_demand(r, self.demands)
-                        )
+                        best_route = min(routes, key=lambda r: route_demand(r, self.demands))
                         best_route.append(node)
 
         cost = self._compute_cost(routes)
         self.evaluations += 1
-        return Solution(
-            routes=routes, cost=cost, feasible=len(routes) <= self.num_vehicles
-        )
+        return Solution(routes=routes, cost=cost, feasible=len(routes) <= self.num_vehicles)
 
     def _compute_cost(self, routes: list[list[int]]) -> float:
         """Compute total cost of a solution (inline, fast path for relocate/exchange)."""
@@ -451,6 +444,8 @@ class HybridGeneticAlgorithm:
         route_loads = [sum(demands[n] for n in r) for r in best]
 
         while improved and (max_iter <= 0 or iter_count < max_iter):
+            if self.cancel_check and self.cancel_check():
+                break
             iter_count += 1
             improved = False
             best_move_cost = best_cost
@@ -464,9 +459,7 @@ class HybridGeneticAlgorithm:
 
                     # O(1) delta on route_from by removing 'node'
                     prev_from = route_from[fi - 1] if fi > 0 else depot
-                    next_from = (
-                        route_from[fi + 1] if fi < len(route_from) - 1 else depot
-                    )
+                    next_from = route_from[fi + 1] if fi < len(route_from) - 1 else depot
                     if len(route_from) == 1:
                         delta_from = -(dm[depot, node] + dm[node, depot])
                     else:
@@ -486,9 +479,7 @@ class HybridGeneticAlgorithm:
                             if self.use_granular_search:
                                 pn = route_to[pos - 1] if pos > 0 else 0
                                 nn = route_to[pos] if pos < len(route_to) else 0
-                                if (
-                                    pn != 0 and pn not in self.granular_neighbors[node]
-                                ) and (
+                                if (pn != 0 and pn not in self.granular_neighbors[node]) and (
                                     nn != 0 and nn not in self.granular_neighbors[node]
                                 ):
                                     continue
@@ -497,9 +488,7 @@ class HybridGeneticAlgorithm:
                             prev_node = route_to[pos - 1] if pos > 0 else depot
                             next_node = route_to[pos] if pos < len(route_to) else depot
                             delta_to = (
-                                dm[prev_node, node]
-                                + dm[node, next_node]
-                                - dm[prev_node, next_node]
+                                dm[prev_node, node] + dm[node, next_node] - dm[prev_node, next_node]
                             )
 
                             new_cost = best_cost + delta_from + delta_to
@@ -539,6 +528,8 @@ class HybridGeneticAlgorithm:
         route_loads = [sum(demands[n] for n in r) for r in best]
 
         while improved and (max_iter <= 0 or iter_count < max_iter):
+            if self.cancel_check and self.cancel_check():
+                break
             iter_count += 1
             improved = False
             best_move_cost = best_cost
@@ -676,6 +667,9 @@ class HybridGeneticAlgorithm:
         )
 
         while self.evaluations < self.max_evaluations:
+            # Check for cancellation at the start of each generation
+            if self.cancel_check and self.cancel_check():
+                break
             pbar.n = self.evaluations
             pbar.set_postfix(best=f"{self.best_solution.cost:.2f}")
             pbar.refresh()
@@ -689,6 +683,9 @@ class HybridGeneticAlgorithm:
 
             # Generate offspring
             while len(new_population) < self.population_size:
+                # Check cancellation inside inner loop for responsiveness
+                if self.cancel_check and self.cancel_check():
+                    break
                 if random.random() < self.crossover_rate:
                     parent1 = self.tournament_select(population)
                     parent2 = self.tournament_select(population)
@@ -754,13 +751,9 @@ class HybridGeneticAlgorithm:
                         "generation": self.generation,
                         "evaluations": self.evaluations,
                         "best_cost": self.best_solution.cost,
-                        "population_avg": sum(s.cost for s in population)
-                        / len(population),
+                        "population_avg": sum(s.cost for s in population) / len(population),
                         "population_size": len(population),
-                        "routes": [
-                            [int(n) for n in r]
-                            for r in (self.best_solution.routes or [])
-                        ],
+                        "routes": [[int(n) for n in r] for r in (self.best_solution.routes or [])],
                     }
                 )
                 last_callback_time = now
@@ -776,9 +769,7 @@ class HybridGeneticAlgorithm:
         pbar.close()
         return self.best_solution
 
-    def run_experiment(
-        self, runs: int = 5, track_convergence: bool = True
-    ) -> ExperimentResult:
+    def run_experiment(self, runs: int = 5, track_convergence: bool = True) -> ExperimentResult:
         """Run multiple independent runs and collect statistics."""
         all_costs = []
         all_convergence = []

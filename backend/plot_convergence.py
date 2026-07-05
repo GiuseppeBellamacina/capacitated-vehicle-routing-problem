@@ -390,9 +390,7 @@ def generate_route_plots(results: dict):
         # Demand legend
         if d_max > d_min:
             legend_demands = [d_min, (d_min + d_max) / 2, d_max]
-            legend_sizes = [
-                18 + (d - d_min) / (d_max - d_min) * 102 for d in legend_demands
-            ]
+            legend_sizes = [18 + (d - d_min) / (d_max - d_min) * 102 for d in legend_demands]
             legend_handles = [
                 Line2D(
                     [0],
@@ -998,9 +996,7 @@ def generate_config_comparison():
     _set_publication_style()
     config_results = discover_config_results()
     if len(config_results) < 2:
-        print(
-            f"Info: Need at least 2 config result sets (found {len(config_results)}). Skipping."
-        )
+        print(f"Info: Need at least 2 config result sets (found {len(config_results)}). Skipping.")
         return
 
     config_names = sorted(config_results.keys())
@@ -1231,9 +1227,7 @@ if __name__ == "__main__":
                 imgs_dir = Path(f"../docs/report/imgs/{cfg_name}")
                 print(f"Auto-detected: --results {results_file}  --imgs {imgs_dir}")
             else:
-                print(
-                    f"Error: {results_file} not found and no config_*/results.json discovered."
-                )
+                print(f"Error: {results_file} not found and no config_*/results.json discovered.")
                 sys.exit(1)
 
         generate_plots(results_file, imgs_dir)

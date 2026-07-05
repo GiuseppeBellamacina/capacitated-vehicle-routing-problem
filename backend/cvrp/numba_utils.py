@@ -89,9 +89,7 @@ def split_numba(
 
             # Cost of route from j to i
             route_len = (
-                dist[depot, perm[j - 1]]
-                + (cum_dist[i] - cum_dist[j])
-                + dist[perm[i - 1], depot]
+                dist[depot, perm[j - 1]] + (cum_dist[i] - cum_dist[j]) + dist[perm[i - 1], depot]
             )
 
             prev = P[j - 1]
@@ -311,9 +309,7 @@ def _or_opt_delta(
 
 
 @njit(cache=True, nogil=True)
-def _apply_or_opt(
-    route: np.ndarray, seg_start: int, seg_len: int, insert_pos: int
-) -> np.ndarray:
+def _apply_or_opt(route: np.ndarray, seg_start: int, seg_len: int, insert_pos: int) -> np.ndarray:
     """Apply Or-opt move and return new route."""
     n = len(route)
     new_route = np.empty(n, dtype=np.int32)
@@ -351,9 +347,7 @@ def _apply_or_opt(
 
 
 @njit(cache=True, nogil=True)
-def order_crossover_numba(
-    p1: np.ndarray, p2: np.ndarray, cx1: int, cx2: int
-) -> np.ndarray:
+def order_crossover_numba(p1: np.ndarray, p2: np.ndarray, cx1: int, cx2: int) -> np.ndarray:
     n = len(p1)
     child = np.full(n, -1, dtype=np.int32)
     child[cx1 : cx2 + 1] = p1[cx1 : cx2 + 1]

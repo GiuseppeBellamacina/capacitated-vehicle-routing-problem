@@ -1,7 +1,7 @@
 % Auto-generated cross-config comparison table
 \begin{table}[htbp]
   \centering
-  \caption{Config variant comparison — best solution cost and gap from BKS}
+  \caption{Confronto tra varianti di configurazione — costo della soluzione migliore e gap dal BKS}
   \label{tab:config-comparison}
   \resizebox{\textwidth}{!}{
   \begin{scriptsize}
