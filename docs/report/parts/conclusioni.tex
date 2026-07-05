@@ -6,7 +6,7 @@ combina la potenza esplorativa degli algoritmi genetici con l'efficacia della
 ricerca locale, produce soluzioni di alta qualit\`a sulle istanze benchmark
 CVRPLIB.
 
-\section{Scelte Progettuali e Originalit\`a}
+\section{Scelte Progettuali}
 
 \subsection{Scelte Chiave}
 
@@ -19,7 +19,7 @@ CVRPLIB.
     \item \textbf{Ricerca Locale Granulare}: L'integrazione della GLS con
     $\gamma = 25$ permette di esplorare un vicinato inter-route molto pi\`u
     ampio rispetto alle configurazioni standard ($\gamma = 15$), senza il
-    costo computazionale proibitivo della ricerca esaustiva $O(N^2)$.
+    costo computazionale proibitivo della ricerca esaustiva $O(n^2)$.
 
     \item \textbf{Ottimizzazione Iperparametrica}: L'uso di Optuna per il
     tuning automatico dei parametri ha permesso di scoprire una configurazione
@@ -50,7 +50,7 @@ CVRPLIB.
     prematura, troppo basso rallenta il miglioramento. Il tuning con Optuna ha
     permesso di individuare il valore ottimale $p_{ls} = 0.259$.
 
-    \item \textbf{Scalabilit\`a}: Su istanze con 101 nodi, lo split $O(n^2)$ e
+    \item \textbf{Scalabilit\`a}: Su istanze con 101 nodi, lo Split $O(n^2)$ e
     la ricerca locale diventano computazionalmente significativi, richiedendo
     attenzione all'efficienza implementativa e all'uso di Numba JIT.
 \end{itemize}

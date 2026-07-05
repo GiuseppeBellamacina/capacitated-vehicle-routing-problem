@@ -6,7 +6,7 @@ benchmark CVRPLIB. L'approccio ibrido, che combina la potenza esplorativa degli
 algoritmi genetici con l'efficacia della ricerca locale, si \`e dimostrato
 particolarmente efficace.
 
-\subsection{Scelte Progettuali e Originalit\`a}
+\subsection{Scelte Progettuali}
 
 \begin{itemize}[nosep]
     \item \textbf{Split di Prins} \cite{prins2004simple}: l'uso dello split come
@@ -16,7 +16,7 @@ particolarmente efficace.
     \item \textbf{Ricerca Locale Granulare}: l'integrazione della GLS con
     $\gamma=25$ permette di esplorare un vicinato inter-route molto pi\`u
     ampio rispetto alle configurazioni standard ($\gamma=15$), senza il
-    costo computazionale della ricerca esaustiva $O(N^2)$.
+    costo computazionale della ricerca esaustiva $O(n^2)$.
     \item \textbf{Tuning con Optuna} \cite{akiba2019optuna}: ha scoperto una
     configurazione non ovvia ($\mu=81$, $p_c=0.675$, $p_m=0.236$, $p_{ls}=0.259$)
     che supera le configurazioni progettate manualmente.
