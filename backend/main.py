@@ -107,6 +107,7 @@ async def run_algorithm_with_callback(
     for run_idx in range(runs):
         # Check cancellation before each run
         if cancel_event and cancel_event.is_set():
+            print(f"[Server] Experiment '{instance_name}' stopped by user — completed {run_idx}/{runs} runs")
             await websocket.send_json({"type": "experiment_cancelled", "completed_runs": run_idx})
             return
 
@@ -202,6 +203,12 @@ async def run_algorithm_with_callback(
 
     total_elapsed = time.time() - total_start
 
+    # If the experiment was cancelled (even during the last run), report it
+    if cancel_event and cancel_event.is_set():
+        print(f"[Server] Experiment '{instance_name}' stopped by user — completed all {len(all_run_costs)}/{runs} runs")
+        await websocket.send_json({"type": "experiment_cancelled", "completed_runs": len(all_run_costs)})
+        return
+
     # Compute statistics
     mean_cost = sum(all_run_costs) / len(all_run_costs)
     variance = sum((c - mean_cost) ** 2 for c in all_run_costs) / len(all_run_costs)
@@ -291,6 +298,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 cancel_event = cancel_events.get(client_id)
                 if cancel_event:
                     cancel_event.set()
+                    print("\n[Server] Stop signal sent — waiting for algorithm to finish current operation...")
             elif action == "list_instances":
                 instances = get_available_instances()
                 await websocket.send_json({"type": "instances", "data": instances})
