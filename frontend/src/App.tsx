@@ -716,6 +716,7 @@ function App() {
   const [expandedPanel, setExpandedPanel] = useState<string>("convergence");
   const [advancedExpanded, setAdvancedExpanded] = useStoredBool("ui.advancedExpanded", false);
   const [logs, setLogs] = useState<string[]>([]);
+  const rightPanelRef = useRef<HTMLDivElement>(null);
 
   function togglePanel(panel: string) {
     setExpandedPanel(prev => prev === panel ? "" : panel);
@@ -957,6 +958,41 @@ function App() {
     return () => clearInterval(id);
   }, [running]);
 
+  // Log right-panel card heights when resized (ResizeObserver)
+  useEffect(() => {
+    const panel = rightPanelRef.current;
+    if (!panel) return;
+
+    const cards = panel.querySelectorAll<HTMLElement>("[data-panel]");
+    if (cards.length === 0) return;
+
+    const logHeights = () => {
+      const heights: Record<string, number> = {};
+      let total = 0;
+      cards.forEach((el) => {
+        const name = el.dataset.panel || "?";
+        const h = el.getBoundingClientRect().height;
+        heights[name] = Math.round(h);
+        total += h;
+      });
+      const pcts: Record<string, string> = {};
+      for (const [name, h] of Object.entries(heights)) {
+        pcts[name] = total > 0 ? ((h / total) * 100).toFixed(1) + "%" : "-";
+      }
+      console.log(
+        "%c📐 Panel heights:",
+        "font-weight:bold;color:#6c8cff",
+        "px →", heights,
+        "| proportions →", pcts
+      );
+    };
+
+    const observer = new ResizeObserver(() => logHeights());
+    cards.forEach((el) => observer.observe(el));
+    logHeights(); // initial log
+    return () => observer.disconnect();
+  }, []);
+
   const selectedOptimal = instances
     .flatMap(s => s.instances)
     .find(i => i.name === selectedInstance)?.optimal ?? optimal;
@@ -1064,9 +1100,9 @@ function App() {
         </div>
 
         {/* Right Panel: Accordion Cards */}
-        <div className="right-panel">
+        <div className="right-panel" ref={rightPanelRef}>
           {/* Convergence Chart */}
-          <div className={`card${expandedPanel === "convergence" ? " expanded" : ""}`}>
+          <div className={`card${expandedPanel === "convergence" ? " expanded" : ""}`} data-panel="convergence">
             <div className="card-header" onClick={() => togglePanel("convergence")}>
               <h2>Convergence</h2>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
@@ -1080,7 +1116,7 @@ function App() {
           </div>
 
           {/* Stats */}
-          <div className={`card${expandedPanel === "statistics" ? " expanded" : ""}`}>
+          <div className={`card${expandedPanel === "statistics" ? " expanded" : ""}`} data-panel="statistics">
             <div className="card-header" onClick={() => togglePanel("statistics")}>
               <h2>Statistics</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1109,7 +1145,7 @@ function App() {
           </div>
 
           {/* Route Details */}
-          <div className={`card${expandedPanel === "routes" ? " expanded" : ""}`}>
+          <div className={`card${expandedPanel === "routes" ? " expanded" : ""}`} data-panel="routes">
             <div className="card-header" onClick={() => togglePanel("routes")}>
               <h2>Route Details</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1128,7 +1164,7 @@ function App() {
           </div>
 
           {/* HGA Parameters */}
-          <div className={`card${expandedPanel === "params" ? " expanded" : ""}`}>
+          <div className={`card${expandedPanel === "params" ? " expanded" : ""}`} data-panel="params">
             <div className="card-header" onClick={() => togglePanel("params")}>
               <h2>HGA Parameters</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

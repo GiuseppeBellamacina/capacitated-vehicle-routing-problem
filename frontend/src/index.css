@@ -205,9 +205,20 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.btn-preset:active {
-  transform: scale(0.97);
-  transition: transform 0.1s ease;
+.btn-preset:active:not(.active) {
+  background: var(--bg-card);
+  border-color: currentColor;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.1s ease;
+}
+
+/* ── Click ripple (when becoming active) ───── */
+
+@keyframes presetPop {
+  50%  { transform: scale(1.10); }
+  80%  { transform: scale(1.04); }
+  100% { transform: scale(1.06); }
 }
 
 /* ── Active state: glow + solid bg + scale ─── */
@@ -218,6 +229,7 @@ body {
   transform: scale(1.06);
   z-index: 1;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  animation: presetPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Default (accent/Medium) active */
@@ -1005,17 +1017,17 @@ select:hover,
 /* ── Log Area ──────────────────────────────── */
 
 .log-area {
-  flex: 0 0 120px;
+  flex: 0 0 60px;
   overflow-y: auto;
   font-family: "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
-  padding: 4px 28px 8px;
+  padding: 2px 28px 4px;
   border-top: 1px solid var(--border);
 }
 
 .log-entry {
-  padding: 3px 0;
+  padding: 2px 0;
   display: flex;
   gap: 8px;
 }
