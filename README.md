@@ -39,7 +39,7 @@ capacitated-vehicle-routing-problem/
 │   ├── config_small.yaml     # Config: lightweight population (pop=10)
 │   ├── config_medium.yaml    # Config: medium population (pop=30)
 │   ├── config_large.yaml     # Config: large population (pop=100)
-│   ├── config_fast.yaml     # Config: minimal population (pop=5)
+│   ├── config_fast.yaml      # Config: minimal population (pop=5)
 │   ├── config_explore.yaml   # Config: aggressive exploration (pop=100, mut=0.4)
 │   ├── config_balanced.yaml  # Config: balanced quality/speed (pop=60)
 │   ├── config_tuned.yaml     # Config: Optuna-generated (tuning output)

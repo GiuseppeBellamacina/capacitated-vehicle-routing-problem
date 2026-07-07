@@ -83,7 +83,7 @@ Una tecnica alternativa per calcolare lower bound molto stretti è il rilassamen
 
 ```mermaid
 flowchart TD
-    A[Upper Bound: soluzione euristica iniziale<br/>(es. Clarke & Wright Savings)] --> B
+    A["Upper Bound: soluzione euristica iniziale<br/>(es. Clarke & Wright Savings)"] --> B
     subgraph BCP [Branch-Cut-and-Price]
         B[Rilassamento LP del Master Problem] --> C[Column Generation:<br/>trova nuove rotte a costo ridotto negativo]
         C --> D[Separazione di Tagli:<br/>aggiungi capacity cuts violati]
@@ -118,12 +118,12 @@ L'**HGA** (chiamato anche **Algoritmo Memetico**) unisce:
 ```mermaid
 graph TD
     A[Popolazione Iniziale: NN + Savings + 79 Random] --> B[Loop Evolutivo]
-    B --> C[Selezione a Torneo (k=4)]
-    C --> D[Crossover: Order Crossover - OX (p_c=0.675)]
-    D --> E[Mutazione: Swap/Insert/Inversion (p_m=0.236)]
+    B -->    C["Selezione a Torneo (k=4)"]
+    C -->    D["Crossover: Order Crossover - OX (p_c=0.675)"]
+    D -->    E["Mutazione: Swap/Insert/Inversion (p_m=0.236)"]
     E --> F[Algoritmo di Split di Prins: Valutazione Fitness]
-    F --> G[Ricerca Locale (p_ls=0.259): 2-Opt + Or-Opt + Relocate + Exchange]
-    G --> H[Elitismo (e=4) e Aggiornamento Popolazione]
+    F -->    G["Ricerca Locale (p_ls=0.259): 2-Opt + Or-Opt + Relocate + Exchange"]
+    G -->    H["Elitismo (e=4) e Aggiornamento Popolazione"]
     H -->|Se valutazioni < 350.000| B
     H -->|Se valutazioni >= 350.000| I[Soluzione Ottima]
 ```
