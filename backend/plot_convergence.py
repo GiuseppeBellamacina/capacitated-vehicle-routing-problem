@@ -87,10 +87,10 @@ CONFIG_LABELS = {
 # ── Compact labels for graph titles & legends (no visual clutter) ──────────
 CONFIG_SHORT_LABELS = {
     "config_small": "Small",
-    "config_medium": "Medium)",
+    "config_medium": "Medium",
     "config_large": "Large",
     "config_fast": "Fast",
-    "config_explore": "Explore)",
+    "config_explore": "Explore",
     "config_balanced": "Balanced",
     "config_tuned": "Tuned",
 }
