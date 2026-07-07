@@ -81,7 +81,12 @@ segmento).
 \subsection{Ricerca Locale Granulare}
 
 Quattro operatori sono applicati con probabilit\`a $p_{ls} = 0.259$ in strategia
-\textbf{steepest descent}:
+\textbf{steepest descent}.
+L'HGA adotta un'\textbf{educazione a due livelli}: il 2-opt (JIT-compilato con
+Numba) \`e applicato al 100\% dei figli (\textit{light}), mentre la ricerca
+locale completa (2-opt + Or-opt + Relocate + Exchange) \`e riservata a una
+frazione $p_{ls}$ dei figli (\textit{full}), ottimizzando il rapporto
+qualit\`a/tempo CPU.
 \begin{itemize}[nosep]
     \item \textbf{2-opt} e \textbf{Or-opt} (intra-route): eliminano incroci e
     riposizionano segmenti di 1--3 nodi;

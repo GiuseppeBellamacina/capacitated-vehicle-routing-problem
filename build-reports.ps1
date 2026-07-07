@@ -58,7 +58,7 @@ function Build-Report {
     }
 
     # Show page count
-    $pages = $result | Select-String "Output written on report.pdf \((\d+) pages"
+    $pages = $result | Select-String "Output written on report.pdf \((\d+) pages\)"
     if ($pages) {
         Write-Host "  $($pages.Matches[0].Value.Trim())" -ForegroundColor Green
     }

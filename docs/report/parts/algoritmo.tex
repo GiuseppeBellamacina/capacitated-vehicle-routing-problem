@@ -28,6 +28,13 @@ decodifica \`e fondamentale: invece di codificare esplicitamente le route nel cr
 si lascia che la DP trovi la partizione ottimale, riducendo lo spazio di ricerca e
 garantendo l'ottimalit\`a della decodifica data la permutazione.
 
+La scelta di una permutazione senza delimitatori \`e deliberata. Le rappresentazioni
+con delimitatori (es.\ inserire zeri tra le route) producono figli non validi durante
+il crossover, richiedendo costose riparazioni. La permutazione semplice, invece,
+garantisce che qualsiasi cromosoma sia sintatticamente valido e separa elegantemente
+il problema di \textbf{sequenziamento} dei clienti (compito del GA) dal problema di
+\textbf{partizionamento in rotte} (compito dello Split).
+
 \begin{algorithm}[H]
 \footnotesize
 \caption{Split Algorithm (Prins, 2004)}
@@ -85,6 +92,13 @@ La popolazione iniziale ($\mu = 81$ individui) \`e generata combinando:
           random per garantire diversit\`a genetica.
 \end{enumerate}
 
+Le due soluzioni euristiche forniscono ``punti di partenza'' di buona qualit\`a,
+accelerando la convergenza iniziale. Le permutazioni casuali garantiscono
+\textbf{diversit\`a genetica}, evitando la convergenza prematura della popolazione
+su un ottimo locale. La proporzione, deliberatamente sbilanciata verso il random
+($\sim$97.5\% con $\mu=81$), favorisce l'esplorazione rispetto allo sfruttamento
+nella fase iniziale.
+
 \section{Operatori Genetici}
 
 \subsection{Selezione a Torneo}
@@ -93,6 +107,14 @@ Viene utilizzata la \textbf{selezione a torneo} \cite{goldberg1991comparative} c
 scelti casualmente dalla popolazione e il migliore (costo minore) viene selezionato.
 Questo metodo offre un buon bilanciamento tra pressione selettiva e diversit\`a.
 
+Rispetto alla roulette wheel (che soffre di dominanza precoce dei migliori) e alla
+selezione per rango (pi\`u lenta), il torneo offre un equilibrio regolabile tramite
+$k$ tra \textbf{pressione selettiva} ($k$ alto favorisce i migliori) e
+\textbf{diversit\`a} ($k$ basso d\`a pi\`u chance agli individui mediocri). Il
+valore $k=4$, determinato da Optuna, offre una pressione selettiva moderata-alta,
+adatta al paesaggio di fitness multimodale del CVRP. L'implementazione include un
+percorso rapido ottimizzato per il caso $k=2$.
+
 \subsection{Crossover: Order Crossover (OX)}
 
 L'Order Crossover \cite{davis1985applying} preserva l'ordine relativo dei geni da entrambi i genitori.
@@ -100,6 +122,16 @@ L'Algoritmo~\ref{alg:ox} descrive il procedimento: vengono selezionati due punti
 taglio casuali, il segmento centrale viene copiato dal primo genitore, e le posizioni
 rimanenti sono riempite con i geni del secondo genitore in ordine di apparizione,
 saltando quelli gi\`a presenti. Il tasso di crossover \`e $p_c = 0.675$.
+
+OX \`e l'operatore ideale per permutazioni perch\'e: (i) preserva l'ordine relativo
+di entrambi i genitori, a differenza del PMX che preserva le posizioni assolute,
+meno rilevante nel routing; (ii) non produce duplicati --- ogni cliente appare
+esattamente una volta, senza bisogno di riparazioni; (iii) trasmette blocchi
+contigui di clienti, che spesso corrispondono a sequenze geograficamente vicine
+(buone rotte parziali). \`E l'operatore standard nella letteratura VRP basata su
+Split \cite{prins2004simple, vidal2012unified}. Il tasso $p_c = 0.675$, inferiore al
+default 0.8, riflette la scelta di Optuna: un crossover leggermente meno frequente,
+combinato con pi\`u ricerca locale, produce risultati migliori.
 
 \begin{algorithm}[H]
 \footnotesize
@@ -144,18 +176,32 @@ Sono implementati tre operatori di mutazione, scelti casualmente con probabilit\
 differenziate:
 \begin{enumerate}[label=\textbf{\arabic*.}]
     \item \textbf{Swap Mutation} (40\%): Scambia due elementi in posizioni casuali.
+          Produce perturbazioni locali, utile per il fine-tuning. \`E complementare
+          al 2-opt della ricerca locale (che opera sulle rotte, non sulla permutazione).
     \item \textbf{Insert Mutation} (30\%): Rimuove un elemento e lo reinserisce in
-          una posizione diversa.
+          una posizione diversa. Modifica l'ordine relativo in modo pi\`u drastico
+          dello swap, aiutando a ``saltare'' fuori da ottimi locali.
     \item \textbf{Inversion Mutation} (30\%): Inverte un sottosegmento della
-          permutazione.
+          permutazione. Poich\'e il CVRP usa distanze simmetriche, l'inversione
+          non altera la fitness della permutazione ma cambia l'output dello Split,
+          creando nuove opportunit\`a di partizionamento.
 \end{enumerate}
 
-Il tasso di mutazione \`e $p_m = 0.236$.
+La scelta stocastica dell'operatore evita bias sistematici e mantiene la diversit\`a
+delle perturbazioni. Il tasso di mutazione \`e $p_m = 0.236$, quasi doppio rispetto
+al default 0.1, riflettendo la necessit\`a di esplorazione aggressiva identificata
+da Optuna.
 
 \section{Ricerca Locale Granulare}
 
 L'ibridazione \`e realizzata attraverso quattro operatori di ricerca locale, applicati
-con probabilit\`a $p_{ls} = 0.259$ ai nuovi individui:
+con probabilit\`a $p_{ls} = 0.259$ ai nuovi individui. Tutti gli operatori usano
+strategia \textbf{steepest descent} (best improvement): ad ogni iterazione viene
+valutato l'intero vicinato e viene applicata la mossa che produce il miglioramento
+maggiore, anzich\'e accettare il primo miglioramento trovato (first improvement).
+Questa scelta privilegia la qualit\`a della soluzione rispetto alla velocit\`a di
+esecuzione, ed \`e particolarmente efficace quando combinata con la ricerca locale
+granulare che riduce drasticamente la dimensione del vicinato da esplorare.
 
 \begin{enumerate}[label=\textbf{\arabic*.}]
     \item \textbf{2-opt (intra-route)}: Per ogni route, cerca coppie di archi $(a,b)$
@@ -168,12 +214,67 @@ con probabilit\`a $p_{ls} = 0.259$ ai nuovi individui:
           diverse.
 \end{enumerate}
 
+\subsection{Educazione a Due Livelli}
+
+Per ottimizzare il rapporto qualit\`a/tempo CPU, l'HGA adotta un'\textbf{educazione
+a due livelli}:
+\begin{itemize}
+    \item \textbf{Light} (applicata al 100\% dei figli): solo 2-opt compilato JIT
+          con Numba. Garantisce che ogni figlio abbia almeno le rotte
+          ``disincrociate'', eliminando difetti banali a costo quasi nullo.
+    \item \textbf{Full} (applicata con probabilit\`a $p_{ls} = 0.259$): tutti e
+          quattro gli operatori (2-opt, Or-opt, Relocate, Exchange). \`E la
+          cosiddetta ``educazione pesante'', computazionalmente costosa (5 FE per
+          chiamata) ma in grado di raffinare significativamente le soluzioni.
+\end{itemize}
+
+Questa architettura a due livelli \`e una delle originalit\`a dell'implementazione:
+invece di applicare la ricerca locale completa a tutti i figli (con costo proibitivo)
+o solo al migliore (con efficacia limitata), si usa il 2-opt come filtro rapido
+universale e si riserva la ricerca completa a una frazione casuale dei figli.
+
+\subsection{Ottimizzazioni Computazionali della Ricerca Locale}
+
+L'efficienza della ricerca locale \`e critica per le performance complessive. Sono
+state implementate le seguenti ottimizzazioni:
+\begin{itemize}
+    \item \textbf{Delta cost evaluation} $O(1)$: per valutare se uno spostamento
+          \`e vantaggioso, non si ricalcola l'intera soluzione ma solo la differenza
+          di costo delle 2 rotte modificate: $\Delta = (\text{costo}_{A, dopo} +
+          \text{costo}_{B, dopo}) - (\text{costo}_{A, prima} + \text{costo}_{B,
+          prima})$. Questo trasforma un'operazione $O(n)$ in $O(1)$.
+    \item \textbf{Pre-calcolo dei carichi}: i load delle route sono mantenuti in
+          vettori e aggiornati in $O(1)$ ad ogni mossa, evitando ricalcoli $O(n)$
+          a ogni iterazione.
+    \item \textbf{Tracciamento solo per indici}: il vicinato viene esplorato
+          calcolando solo indici e delta; la mossa fisica (costosa, con copia
+          delle route) viene applicata in-place solo alla fine del ciclo, se \`e
+          stato trovato un miglioramento.
+    \item \textbf{Ordine randomizzato}: Relocate ed Exchange vengono eseguiti in
+          ordine casuale a ogni chiamata per evitare bias sistematici.
+    \item \textbf{Limite alle iterazioni} ($\text{max\_iter}=2$): limita i cicli
+          di ricerca locale a un massimo di 2 passate per chiamata, evitando di
+          sprecare budget computazionale su miglioramenti infinitesimali.
+\end{itemize}
+
+Queste ottimizzazioni permettono all'algoritmo di raggiungere oltre 6.900 valutazioni
+al secondo per core, rendendo fattibili 350.000 FE in circa 50 secondi anche su
+istanze da 101 clienti.
+
 Per mitigare l'elevato costo computazionale degli operatori inter-route, \`e stata
-integrata la \textbf{Ricerca Locale Granulare} (Granular Local Search, GLS) \cite{toth2003granular}. Per
+integrata la \textbf{Ricerca Locale Granulare} (Granular Local Search, GLS)
+\cite{toth2003granular}. Per
 ciascun cliente $i$ si definisce un intorno di vicinanza $\Gamma_i$ composto dai soli
 $\gamma = 25$ clienti pi\`u vicini. Durante la ricerca locale, un cliente viene
 inserito o scambiato solo in posizioni adiacenti a nodi nel suo intorno granulare,
 riducendo la complessit\`a a $O(n \cdot \gamma)$.
+
+Senza GLS, la ricerca locale inter-route avrebbe complessit\`a $O(m^2 \cdot n_r^2)$
+dove $m$ \`e il numero di rotte ed $n_r$ la lunghezza media. Con GLS, il vicinato si
+riduce drasticamente perch\'e \`e improbabile che spostare un cliente in una rotta
+geograficamente lontana produca un miglioramento. Il valore $\gamma = 25$, quasi
+doppio rispetto al default 15, \`e stato determinato da Optuna: un vicinato pi\`u
+ampio paga in termini di qualit\`a senza un costo computazionale proibitivo.
 
 \begin{algorithm}[H]
 \footnotesize
@@ -238,6 +339,16 @@ $\mathit{iter} \gets 0$\;
 I migliori $e = 4$ individui della popolazione corrente sono preservati nella
 generazione successiva (elitismo). Il resto della popolazione \`e sostituito
 dai nuovi individui generati tramite crossover, mutazione e ricerca locale.
+
+\subsection{Rilevamento Duplicati}
+
+Per mantenere la diversit\`a genetica ed evitare la convergenza prematura, a ogni
+generazione viene eseguito il \textbf{rilevamento dei duplicati}: individui con costo
+identico (arrotondato alla terza cifra decimale) vengono identificati come cloni e
+\textbf{sostituiti con individui casuali freschi}, pre-educati con 2-opt. Senza
+questo meccanismo, la popolazione collasserebbe rapidamente su poche soluzioni quasi
+identiche (deriva genetica), sprecando il budget computazionale e impedendo ulteriore
+miglioramento.
 
 \section{Criterio di Arresto}
 
