@@ -242,6 +242,7 @@ async def run_algorithm_with_callback(
             "num_vehicles": [len(r) for r in (best_routes or [[]])],
             "routes": [[int(n) for n in r] for r in (best_routes or [])],
             "convergence": downsampled_conv,
+            "max_evals": max_fitness_evals,
             "execution_time": total_elapsed,
         }
     )

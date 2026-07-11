@@ -59,6 +59,7 @@ interface WsExperimentComplete {
   convergence: number[][];
   execution_time: number;
   generations_to_best: number[];
+  max_evals?: number;
 }
 
 type WsMessage =
@@ -351,7 +352,32 @@ function RouteCanvas({ coords, demands, capacity, routes, instanceName }: RouteC
 
 // --- Convergence Chart Component ---
 
-function ConvergenceChart({ data }: { data: number[][] }) {
+function formatEval(n: number): string {
+  if (n >= 1000) {
+    const k = n / 1000;
+    if (k === Math.floor(k)) return `${k}k`;
+    return `${k.toFixed(1)}k`;
+  }
+  return n.toString();
+}
+
+function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, spikes: number, outerR: number, innerR: number) {
+  let rot = (Math.PI / 2) * 3;
+  const step = Math.PI / spikes;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - outerR);
+  for (let i = 0; i < spikes; i++) {
+    ctx.lineTo(cx + Math.cos(rot) * outerR, cy + Math.sin(rot) * outerR);
+    rot += step;
+    ctx.lineTo(cx + Math.cos(rot) * innerR, cy + Math.sin(rot) * innerR);
+    rot += step;
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+function ConvergenceChart({ data, maxEvals, optimal }: { data: { eval: number; cost: number }[][]; maxEvals: number; optimal: number | null }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -388,21 +414,25 @@ function ConvergenceChart({ data }: { data: number[][] }) {
       return;
     }
 
-    const maxLen = Math.max(...data.map(d => d.length));
     let globalMin = Infinity, globalMax = -Infinity;
     for (const d of data) {
-      for (const v of d) {
-        if (v < globalMin) globalMin = v;
-        if (v > globalMax) globalMax = v;
+      for (const point of d) {
+        if (point.cost < globalMin) globalMin = point.cost;
+        if (point.cost > globalMax) globalMax = point.cost;
       }
+    }
+    // Include optimal value in Y range so the line is always visible
+    if (optimal !== null) {
+      if (optimal < globalMin) globalMin = optimal;
+      if (optimal > globalMax) globalMax = optimal;
     }
     if (globalMax - globalMin < 1) {
       globalMin -= 100;
       globalMax += 100;
     }
 
-    function xPos(i: number) {
-      return pad.left + (i / (maxLen - 1 || 1)) * pw;
+    function xPos(evalVal: number) {
+      return pad.left + (evalVal / maxEvals) * pw;
     }
     function yPos(v: number) {
       return pad.top + ph - ((v - globalMin) / (globalMax - globalMin)) * ph;
@@ -431,11 +461,33 @@ function ConvergenceChart({ data }: { data: number[][] }) {
     ctx.font = "10px Inter, sans-serif";
     ctx.textAlign = "center";
     for (let i = 0; i <= 4; i++) {
-      const idx = Math.floor((i / 4) * (maxLen - 1));
-      const x = xPos(idx);
-      ctx.fillText(idx.toString(), x, h - pad.bottom + 20);
+      const evalVal = (i / 4) * maxEvals;
+      const x = xPos(evalVal);
+      ctx.fillText(formatEval(evalVal), x, h - pad.bottom + 20);
     }
     ctx.fillText("Evaluations", w / 2, h - 5);
+
+    // Optimal reference line
+    if (optimal !== null) {
+      const oy = yPos(optimal);
+      ctx.strokeStyle = "#34d399";
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.55;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, oy);
+      ctx.lineTo(w - pad.right, oy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+
+      // Label
+      ctx.fillStyle = "#34d399";
+      ctx.font = "bold 9px Inter, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(`Optimal: ${Math.round(optimal)}`, pad.left + 6, oy - 3);
+    }
 
     // Draw convergence lines for each run
     const runColors = ["#6c8cff", "#4ade80", "#fbbf24", "#f87171", "#a78bfa"];
@@ -448,15 +500,66 @@ function ConvergenceChart({ data }: { data: number[][] }) {
 
       ctx.beginPath();
       for (let i = 0; i < run.length; i++) {
-        // Scale x to maxLen
-        const scaledX = Math.round((i / (run.length - 1)) * (maxLen - 1));
-        const x = xPos(scaledX);
-        const y = yPos(run[i]);
+        const x = xPos(run[i].eval);
+        const y = yPos(run[i].cost);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
       ctx.stroke();
       ctx.globalAlpha = 1;
+    }
+
+    // Draw "best found" markers for each run
+    for (let r = 0; r < data.length; r++) {
+      const run = data[r];
+      if (run.length === 0) continue;
+
+      // Find the minimum cost and the first index where it was achieved
+      // (best_cost_history is monotonically non-increasing, so the min is the
+      // last value, but the first occurrence of that min is when it was found)
+      let minCost = run[0].cost;
+      let bestIdx = 0;
+      for (let i = 1; i < run.length; i++) {
+        if (run[i].cost < minCost) {
+          minCost = run[i].cost;
+          bestIdx = i;
+        }
+      }
+
+      const bestPoint = run[bestIdx];
+      const mx = xPos(bestPoint.eval);
+      const my = yPos(bestPoint.cost);
+      const color = runColors[r % runColors.length];
+
+      // Vertical dashed line from the best point down to the x-axis
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.35;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(mx, my);
+      ctx.lineTo(mx, pad.top + ph);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+
+      // Star marker at the best point
+      ctx.fillStyle = color;
+      ctx.strokeStyle = "#0a0c14";
+      ctx.lineWidth = 2;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8;
+      drawStar(ctx, mx, my, 5, 7, 3);
+      ctx.shadowBlur = 0;
+
+      // Label with eval count (only if there's room above the marker)
+      if (my > pad.top + 14) {
+        ctx.fillStyle = color;
+        ctx.font = "bold 9px Inter, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(`★ ${formatEval(bestPoint.eval)}`, mx, my - 10);
+      }
     }
 
     // Legend
@@ -472,7 +575,7 @@ function ConvergenceChart({ data }: { data: number[][] }) {
       ctx.textBaseline = "top";
       ctx.fillText(`Run ${r + 1}`, x + 14, y);
     }
-  }, [data]);
+  }, [data, maxEvals, optimal]);
 
   useEffect(() => {
     draw();
@@ -693,6 +796,8 @@ function App() {
   const [popSize, setPopSize] = useState(100);
   const [activePreset, setActivePreset] = useState<string>("large");
   const [maxEvals, setMaxEvals] = useState(350000);
+  const maxEvalsRef = useRef(maxEvals);
+  useEffect(() => { maxEvalsRef.current = maxEvals; }, [maxEvals]);
   const [numRuns, setNumRuns] = useState(5);
   const [crossoverRate, setCrossoverRate] = useState(0.8);
   const [mutationRate, setMutationRate] = useState(0.1);
@@ -706,20 +811,15 @@ function App() {
   const [currentRoutes, setCurrentRoutes] = useState<number[][] | null>(null);
   const [optimal, setOptimal] = useState<number | null>(null);
 
-  const [liveConvergence, setLiveConvergence] = useState<number[][]>([]);
+  const [liveConvergence, setLiveConvergence] = useState<{ eval: number; cost: number }[][]>([]);
   const [completedRuns, setCompletedRuns] = useState<number[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const startTimeRef = useRef<number>(0);
   const lastUpdateRef = useRef<number>(0);
 
   const [staleSeconds, setStaleSeconds] = useState(0);
-  const [expandedPanel, setExpandedPanel] = useState<string>("convergence");
+  const [paramsExpanded, setParamsExpanded] = useStoredBool("ui.paramsExpanded", false);
   const [advancedExpanded, setAdvancedExpanded] = useStoredBool("ui.advancedExpanded", false);
-  const rightPanelRef = useRef<HTMLDivElement>(null);
-
-  function togglePanel(panel: string) {
-    setExpandedPanel(prev => prev === panel ? "" : panel);
-  }
 
   function addLog(msg: string) {
     console.log(`[Solver Log] ${msg}`);
@@ -810,7 +910,7 @@ function App() {
           break;
         case "progress":
           lastUpdateRef.current = Date.now();
-          setProgress(msg.evaluations / maxEvals);
+          setProgress(msg.evaluations / maxEvalsRef.current);
           setBestCost(msg.best_cost);
           setElapsedTime((Date.now() - startTimeRef.current) / 1000);
           if (msg.routes) {
@@ -820,7 +920,7 @@ function App() {
             const next = prev.map(arr => [...arr]);
             const runIdx = msg.run - 1;
             if (next[runIdx]) {
-              next[runIdx].push(msg.best_cost);
+              next[runIdx].push({ eval: msg.evaluations, cost: msg.best_cost });
             }
             return next;
           });
@@ -956,41 +1056,6 @@ function App() {
     return () => clearInterval(id);
   }, [running]);
 
-  // Log right-panel card heights when resized (ResizeObserver)
-  useEffect(() => {
-    const panel = rightPanelRef.current;
-    if (!panel) return;
-
-    const cards = panel.querySelectorAll<HTMLElement>("[data-panel]");
-    if (cards.length === 0) return;
-
-    const logHeights = () => {
-      const heights: Record<string, number> = {};
-      let total = 0;
-      cards.forEach((el) => {
-        const name = el.dataset.panel || "?";
-        const h = el.getBoundingClientRect().height;
-        heights[name] = Math.round(h);
-        total += h;
-      });
-      const pcts: Record<string, string> = {};
-      for (const [name, h] of Object.entries(heights)) {
-        pcts[name] = total > 0 ? ((h / total) * 100).toFixed(1) + "%" : "-";
-      }
-      console.log(
-        "%c📐 Panel heights:",
-        "font-weight:bold;color:#6c8cff",
-        "px →", heights,
-        "| proportions →", pcts
-      );
-    };
-
-    const observer = new ResizeObserver(() => logHeights());
-    cards.forEach((el) => observer.observe(el));
-    logHeights(); // initial log
-    return () => observer.disconnect();
-  }, []);
-
   const selectedOptimal = instances
     .flatMap(s => s.instances)
     .find(i => i.name === selectedInstance)?.optimal ?? optimal;
@@ -1098,35 +1163,39 @@ function App() {
         </div>
 
         {/* Right Panel: Accordion Cards */}
-        <div className="right-panel" ref={rightPanelRef}>
+        <div className="right-panel">
           {/* Convergence Chart */}
-          <div className={`card${expandedPanel === "convergence" ? " expanded" : ""}`} data-panel="convergence">
-            <div className="card-header" onClick={() => togglePanel("convergence")}>
+          <div className="card card-convergence expanded" data-panel="convergence">
+            <div className="card-header">
               <h2>Convergence</h2>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-                className={`card-toggle-icon${expandedPanel === "convergence" ? " open" : ""}`}>
-                <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
             </div>
-            <Collapsible expanded={expandedPanel === "convergence"}>
-            <ConvergenceChart data={liveConvergence.length > 0 ? liveConvergence : (results?.convergence ?? [])} />
+            <Collapsible expanded={true}>
+            <ConvergenceChart
+              data={liveConvergence.length > 0
+                ? liveConvergence
+                : (results?.convergence ?? []).map(run =>
+                    run.map((cost, i, arr) => ({
+                      eval: arr.length > 1 ? Math.round((i / (arr.length - 1)) * (results?.max_evals ?? maxEvals)) : 0,
+                      cost,
+                    }))
+                  )
+              }
+              maxEvals={results?.max_evals ?? maxEvals}
+              optimal={selectedOptimal}
+            />
             </Collapsible>
           </div>
 
           {/* Stats */}
-          <div className={`card${expandedPanel === "statistics" ? " expanded" : ""}`} data-panel="statistics">
-            <div className="card-header" onClick={() => togglePanel("statistics")}>
+          <div className="card card-stats expanded" data-panel="statistics">
+            <div className="card-header">
               <h2>Statistics</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {results && <span className="badge badge-success">Complete</span>}
                 {running && <span className="badge badge-warning">Running</span>}
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-                  className={`card-toggle-icon${expandedPanel === "statistics" ? " open" : ""}`}>
-                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
               </div>
             </div>
-            <Collapsible expanded={expandedPanel === "statistics"}>
+            <Collapsible expanded={true}>
             <StatsPanel results={liveResults} optimal={selectedOptimal} />
 
             {results?.runs && results.runs.length > 0 && (
@@ -1143,37 +1212,33 @@ function App() {
           </div>
 
           {/* Route Details */}
-          <div className={`card${expandedPanel === "routes" ? " expanded" : ""}`} data-panel="routes">
-            <div className="card-header" onClick={() => togglePanel("routes")}>
+          <div className="card card-routes expanded" data-panel="routes">
+            <div className="card-header">
               <h2>Route Details</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {currentRoutes && (
                   <span className="badge badge-purple">{currentRoutes.length} vehicles</span>
                 )}
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-                  className={`card-toggle-icon${expandedPanel === "routes" ? " open" : ""}`}>
-                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
               </div>
             </div>
-            <Collapsible expanded={expandedPanel === "routes"}>
+            <Collapsible expanded={true}>
             <RouteDetails routes={currentRoutes ?? results?.routes ?? null} demands={demands} capacity={capacity} />
             </Collapsible>
           </div>
 
           {/* HGA Parameters */}
-          <div className={`card${expandedPanel === "params" ? " expanded" : ""}`} data-panel="params">
-            <div className="card-header" onClick={() => togglePanel("params")}>
+          <div className={`card card-params${paramsExpanded ? " expanded" : ""}`} data-panel="params">
+            <div className="card-header" onClick={() => setParamsExpanded(!paramsExpanded)}>
               <h2>HGA Parameters</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span className="badge badge-accent">{activePreset ? activePreset.toUpperCase() : "CUSTOM"}</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-                  className={`card-toggle-icon${expandedPanel === "params" ? " open" : ""}`}>
+                  className={`card-toggle-icon${paramsExpanded ? " open" : ""}`}>
                   <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
             </div>
-            <Collapsible expanded={expandedPanel === "params"}>
+            <Collapsible expanded={paramsExpanded}>
             {/* Core parameters — always visible when expanded */}
             <div className="params-grid">
               <div className="param-field">

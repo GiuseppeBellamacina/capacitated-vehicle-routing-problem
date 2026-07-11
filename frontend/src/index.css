@@ -56,37 +56,6 @@
   background: var(--text-muted);
 }
 
-/* ── Custom dark scrollbars for scrollable panels ─────────── */
-
-.route-detail-list,
-.collapsible-inner {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-focus) var(--bg);
-}
-
-.route-detail-list::-webkit-scrollbar,
-.collapsible-inner::-webkit-scrollbar {
-  width: 8px;
-}
-
-.route-detail-list::-webkit-scrollbar-track,
-.collapsible-inner::-webkit-scrollbar-track {
-  background: var(--bg);
-  border-radius: 4px;
-}
-
-.route-detail-list::-webkit-scrollbar-thumb,
-.collapsible-inner::-webkit-scrollbar-thumb {
-  background: var(--border-focus);
-  border-radius: 4px;
-  border: 2px solid var(--bg);
-}
-
-.route-detail-list::-webkit-scrollbar-thumb:hover,
-.collapsible-inner::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
-}
-
 /* ── Base ──────────────────────────────────── */
 
 body {
@@ -459,22 +428,33 @@ select:hover,
 
 .right-panel .card {
   flex: 0 0 auto;
-  padding: 8px 14px;
-  gap: 8px;
+  padding: 6px 14px;
+  gap: 6px;
 }
 
 .right-panel .card.expanded {
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
-  padding: 12px 14px;
-  gap: 10px;
+  padding: 8px 14px;
+  gap: 8px;
 }
 
+/* Per-panel flex ratios — use .card.card-X to match specificity of .card.expanded (0,3,0) */
+.right-panel .card.card-convergence { flex: 2.8 1 0; }
+.right-panel .card.card-stats      { flex: 1 1 0; }
+.right-panel .card.card-routes      { flex: 2.8 1 0; }
+.right-panel .card.card-params:not(.expanded) { flex: 0 0 auto; }
+.right-panel .card.card-params.expanded { flex: 1.2 1 0; }
+
 .right-panel .card-header {
-  cursor: pointer;
+  cursor: default;
   user-select: none;
   padding: 2px 0;
+}
+
+.right-panel .card-params .card-header {
+  cursor: pointer;
 }
 
 .right-panel .card-header:hover h2 {
@@ -579,15 +559,15 @@ select:hover,
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
+  gap: 6px;
 }
 
 .stat-card {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px 12px;
+  padding: 8px 10px;
   text-align: center;
   transition: all var(--transition);
 }
@@ -597,7 +577,7 @@ select:hover,
 }
 
 .stat-card .stat-value {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   font-weight: 800;
   color: var(--accent);
   letter-spacing: -0.02em;
@@ -612,9 +592,9 @@ select:hover,
 }
 
 .stat-card .stat-label {
-  font-size: 0.65rem;
+  font-size: 0.58rem;
   color: var(--text-muted);
-  margin-top: 4px;
+  margin-top: 2px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 600;
@@ -625,23 +605,44 @@ select:hover,
 .route-detail-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-focus) var(--bg);
+}
+
+.route-detail-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.route-detail-list::-webkit-scrollbar-track {
+  background: var(--bg);
+  border-radius: 4px;
+}
+
+.route-detail-list::-webkit-scrollbar-thumb {
+  background: var(--border-focus);
+  border-radius: 4px;
+  border: 2px solid var(--bg);
+}
+
+.route-detail-list::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }
 
 .route-detail-row {
   display: grid;
-  grid-template-columns: 32px 1fr 60px 60px;
+  grid-template-columns: 24px 1fr 55px 50px;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius);
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
   background: var(--bg);
   border: 1px solid transparent;
   transition: all var(--transition);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
 }
 
 .route-detail-row:hover {
@@ -649,13 +650,13 @@ select:hover,
 }
 
 .route-index {
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.65rem;
+  font-size: 0.58rem;
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
@@ -681,7 +682,7 @@ select:hover,
 
 .load-bar-bg {
   grid-column: 1 / -1;
-  height: 3px;
+  height: 2px;
   background: var(--border);
   border-radius: 2px;
   overflow: hidden;
@@ -719,8 +720,7 @@ select:hover,
   flex-direction: column;
   flex: 1 1 0;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 /* ── Collapsible Card Toggle ───────────────── */
