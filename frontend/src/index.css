@@ -106,14 +106,6 @@ body {
   background-clip: text;
 }
 
-.app-header .subtitle {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  margin-left: 10px;
-  font-weight: 400;
-  letter-spacing: 0.03em;
-}
-
 .header-right {
   display: flex;
   align-items: center;
@@ -148,7 +140,9 @@ body {
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0);
-  box-shadow: 0 0 0 0 rgba(0, 0, 0, 0), 0 0 0 0 rgba(0, 0, 0, 0);
+  box-shadow:
+    0 0 0 0 rgba(0, 0, 0, 0),
+    0 0 0 0 rgba(0, 0, 0, 0);
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -185,9 +179,15 @@ body {
 /* ── Click ripple (when becoming active) ───── */
 
 @keyframes presetPop {
-  50%  { transform: scale(1.10); }
-  80%  { transform: scale(1.04); }
-  100% { transform: scale(1.06); }
+  50% {
+    transform: scale(1.1);
+  }
+  80% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1.06);
+  }
 }
 
 /* ── Active state: glow + solid bg + scale ─── */
@@ -441,11 +441,33 @@ select:hover,
 }
 
 /* Per-panel flex ratios — use .card.card-X to match specificity of .card.expanded (0,3,0) */
-.right-panel .card.card-convergence { flex: 2.8 1 0; }
-.right-panel .card.card-stats      { flex: 1 1 0; }
-.right-panel .card.card-routes      { flex: 2.8 1 0; }
-.right-panel .card.card-params:not(.expanded) { flex: 0 0 auto; }
-.right-panel .card.card-params.expanded { flex: 1.2 1 0; }
+.right-panel .card.card-convergence {
+  flex: 2.8 1 0;
+}
+.right-panel .card.card-stats {
+  flex: 1 1 0;
+}
+.right-panel .card.card-routes {
+  flex: 2.8 1 0;
+}
+.right-panel .card.card-params:not(.expanded) {
+  flex: 0 0 auto;
+}
+.right-panel .card.card-params.expanded {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.right-panel .card.card-params.expanded .collapsible.open {
+  flex: 1 1 auto;
+}
+
+.right-panel .card.card-params.expanded .collapsible-inner {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
 
 .right-panel .card-header {
   cursor: default;
@@ -773,8 +795,8 @@ select:hover,
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 8px 12px;
-  margin-top: 4px;
+  padding: 6px 12px;
+  margin-top: 2px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -807,8 +829,8 @@ select:hover,
 
 .params-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+  gap: 8px;
 }
 
 .param-field {
@@ -853,6 +875,7 @@ select:hover,
 
 .param-field input[type="number"] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 .param-field input[type="number"]::-webkit-inner-spin-button,
 .param-field input[type="number"]::-webkit-outer-spin-button {
@@ -1018,8 +1041,6 @@ select:hover,
   color: var(--text-muted);
 }
 
-
-
 /* ── Fade-in Animation ─────────────────────── */
 
 @keyframes fadeIn {
@@ -1066,6 +1087,40 @@ select:hover,
 
 .tooltip:hover::after {
   opacity: 1;
+}
+
+.param-field .tooltip::after {
+  white-space: normal;
+  max-width: 220px;
+  text-align: center;
+  padding: 8px 12px;
+  line-height: 1.45;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+/* Tooltip below the label so it isn't clipped by the card top edge */
+.param-field .tooltip.tooltip-below::after {
+  bottom: auto;
+  top: calc(100% + 6px);
+}
+
+.param-label-tooltip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-bottom: none;
+}
+
+.param-info-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.param-label-tooltip:hover .param-info-icon {
+  color: var(--accent);
 }
 
 /* ── Route Legend ──────────────────────────── */

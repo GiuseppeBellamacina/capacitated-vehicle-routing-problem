@@ -1,776 +1,46 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-
-// --- Types ---
-
-interface InstanceInfo {
-  name: string;
-  dimension: number;
-  capacity: number;
-  num_vehicles: number;
-  optimal: number | null;
-}
-
-interface InstanceSet {
-  set: string;
-  instances: InstanceInfo[];
-}
-
-interface Coord {
-  x: number;
-  y: number;
-}
-
-interface WsProgress {
-  type: "progress";
-  run: number;
-  generation: number;
-  evaluations: number;
-  best_cost: number;
-  population_avg: number;
-  routes?: number[][];
-}
-
-interface WsRunStart {
-  type: "run_start";
-  run: number;
-  total_runs: number;
-  instance: string;
-}
-
-interface WsRunComplete {
-  type: "run_complete";
-  run: number;
-  cost: number;
-  routes: number[][];
-  generations_to_best: number;
-  num_vehicles: number;
-  evaluations: number;
-}
-
-interface WsExperimentComplete {
-  type: "experiment_complete";
-  instance: string;
-  optimal: number | null;
-  best: number;
-  mean: number;
-  std_dev: number;
-  runs: number[];
-  routes: number[][];
-  convergence: number[][];
-  execution_time: number;
-  generations_to_best: number[];
-  max_evals?: number;
-}
-
-type WsMessage =
-  | WsProgress
-  | WsRunStart
-  | WsRunComplete
-  | WsExperimentComplete
-  | { type: "instances"; data: InstanceSet[] }
-  | { type: "error"; message: string }
-  | {  type: "pong" }
-  | { type: "experiment_cancelled"; completed_runs: number }
-  | { type: "info"; message: string };
-
-// --- Config Presets ---
-
-interface Preset {
-  label: string;
-  description: string;
-  variant: "best" | "accent" | "small-preset" | "warning" | "danger" | "balanced" | "tuned";
-  population_size: number;
-  tournament_size: number;
-  elite_count: number;
-  granular_size: number;
-  mutation_rate: number;
-  crossover_rate: number;
-  local_search_rate: number;
-  local_search_max_iter: number;
-}
-
-const PRESETS: Record<string, Preset> = {
-  tuned: {
-    label: "★ Tuned", description: "Ottimale", variant: "tuned",
-    population_size: 81, tournament_size: 4, elite_count: 4, granular_size: 25,
-    mutation_rate: 0.236, crossover_rate: 0.675, local_search_rate: 0.259, local_search_max_iter: 10,
-  },
-  large: {
-    label: "Large", description: "Qualità", variant: "best",
-    population_size: 100, tournament_size: 4, elite_count: 5, granular_size: 15,
-    mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
-  },
-  balanced: {
-    label: "Balanced", description: "Equilibrio", variant: "balanced",
-    population_size: 60, tournament_size: 3, elite_count: 4, granular_size: 12,
-    mutation_rate: 0.1, crossover_rate: 0.85, local_search_rate: 0.1, local_search_max_iter: 2,
-  },
-  medium: {
-    label: "Medium", description: "Medio", variant: "accent",
-    population_size: 30, tournament_size: 3, elite_count: 3, granular_size: 7,
-    mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
-  },
-  small: {
-    label: "Small", description: "Leggero", variant: "small-preset",
-    population_size: 10, tournament_size: 2, elite_count: 2, granular_size: 3,
-    mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
-  },
-  fast: {
-    label: "Fast", description: "Velocità", variant: "warning",
-    population_size: 5, tournament_size: 2, elite_count: 1, granular_size: 2,
-    mutation_rate: 0.1, crossover_rate: 0.8, local_search_rate: 0.1, local_search_max_iter: 2,
-  },
-  explore: {
-    label: "Explore", description: "Esplora", variant: "danger",
-    population_size: 100, tournament_size: 2, elite_count: 1, granular_size: 15,
-    mutation_rate: 0.4, crossover_rate: 0.95, local_search_rate: 0.25, local_search_max_iter: 3,
-  },
-};
-
-const ROUTE_COLORS = [
-  "#6c8cff", "#4ade80", "#fbbf24", "#f87171", "#a78bfa",
-  "#22d3ee", "#fb923c", "#f472b6", "#34d399", "#e879f9",
-  "#818cf8", "#2dd4bf", "#facc15", "#fb7185", "#38bdf8",
-  "#a3e635", "#c084fc", "#60a5fa", "#f59e0b", "#10b981",
-];
-
-// --- Route Canvas Component ---
-
-interface RouteCanvasProps {
-  coords: Coord[];
-  demands: number[];
-  capacity: number;
-  routes: number[][] | null;
-  instanceName: string;
-}
-
-function RouteCanvas({ coords, demands, capacity, routes, instanceName }: RouteCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const rect = container.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = rect.width + "px";
-    canvas.style.height = rect.height + "px";
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.scale(dpr, dpr);
-
-    const w = rect.width;
-    const h = rect.height;
-    const padding = 20;
-
-    // ── Square viewport (uniform aspect ratio) ─────────────────────────
-    const size = Math.min(w, h);
-    const ox = (w - size) / 2;
-    const oy = (h - size) / 2;
-
-    // Clear
-    ctx.fillStyle = "#0a0c14";
-    ctx.fillRect(0, 0, w, h);
-
-    if (coords.length === 0) {
-      ctx.fillStyle = "#8b8fa3";
-      ctx.font = "14px Inter, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("No data", ox + size / 2, oy + size / 2);
-      return;
-    }
-
-    // Compute bounds
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const c of coords) {
-      if (c.x < minX) minX = c.x;
-      if (c.x > maxX) maxX = c.x;
-      if (c.y < minY) minY = c.y;
-      if (c.y > maxY) maxY = c.y;
-    }
-
-    const dataW = maxX - minX || 1;
-    const dataH = maxY - minY || 1;
-    const drawSize = size - 2 * padding;
-    const scale = Math.min(drawSize / dataW, drawSize / dataH);
-    const dataOffX = (drawSize - dataW * scale) / 2;
-    const dataOffY = (drawSize - dataH * scale) / 2;
-
-    function tx(x: number) {
-      return ox + padding + dataOffX + (x - minX) * scale;
-    }
-    function ty(y: number) {
-      return oy + padding + dataOffY + (maxY - y) * scale;
-    }
-
-    // Draw grid (within square)
-    ctx.strokeStyle = "rgba(255,255,255,0.03)";
-    ctx.lineWidth = 1;
-    const gx0 = ox + padding; const gy0 = oy + padding;
-    const gSize = size - 2 * padding;
-    for (let i = 0; i <= 10; i++) {
-      const gx = gx0 + (i / 10) * gSize;
-      ctx.beginPath();
-      ctx.moveTo(gx, gy0);
-      ctx.lineTo(gx, gy0 + gSize);
-      ctx.stroke();
-      const gy = gy0 + (i / 10) * gSize;
-      ctx.beginPath();
-      ctx.moveTo(gx0, gy);
-      ctx.lineTo(gx0 + gSize, gy);
-      ctx.stroke();
-    }
-
-    // Draw routes
-    if (routes && routes.length > 0) {
-      for (let ri = 0; ri < routes.length; ri++) {
-        const route = routes[ri];
-        if (route.length === 0) continue;
-        const color = ROUTE_COLORS[ri % ROUTE_COLORS.length];
-
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.globalAlpha = 0.85;
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 6;
-
-        ctx.beginPath();
-        // Depot to first
-        ctx.moveTo(tx(coords[0].x), ty(coords[0].y));
-        ctx.lineTo(tx(coords[route[0]].x), ty(coords[route[0]].y));
-        // Route edges
-        for (let i = 0; i < route.length - 1; i++) {
-          ctx.lineTo(tx(coords[route[i + 1]].x), ty(coords[route[i + 1]].y));
-        }
-        // Last to depot
-        ctx.lineTo(tx(coords[0].x), ty(coords[0].y));
-        ctx.stroke();
-
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = 1;
-
-        // Direction arrows
-        for (let i = -1; i < route.length; i++) {
-          let fromX: number, fromY: number, toX: number, toY: number;
-          if (i === -1) {
-            fromX = tx(coords[0].x);
-            fromY = ty(coords[0].y);
-            toX = tx(coords[route[0]].x);
-            toY = ty(coords[route[0]].y);
-          } else if (i === route.length - 1) {
-            fromX = tx(coords[route[i]].x);
-            fromY = ty(coords[route[i]].y);
-            toX = tx(coords[0].x);
-            toY = ty(coords[0].y);
-          } else {
-            fromX = tx(coords[route[i]].x);
-            fromY = ty(coords[route[i]].y);
-            toX = tx(coords[route[i + 1]].x);
-            toY = ty(coords[route[i + 1]].y);
-          }
-
-          const mx = (fromX + toX) / 2;
-          const my = (fromY + toY) / 2;
-          const dx = toX - fromX;
-          const dy = toY - fromY;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          if (len < 2) continue;
-          const ndx = dx / len;
-          const ndy = dy / len;
-
-          ctx.fillStyle = color;
-          ctx.save();
-          ctx.translate(mx, my);
-          ctx.rotate(Math.atan2(ndy, ndx));
-          ctx.beginPath();
-          ctx.moveTo(4, 0);
-          ctx.lineTo(-3, -3);
-          ctx.lineTo(-3, 3);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-        }
-      }
-    }
-
-    // Draw depot
-    ctx.fillStyle = "#f87171";
-    ctx.strokeStyle = "#f87171";
-    ctx.lineWidth = 3;
-    ctx.shadowColor = "rgba(248,113,113,0.6)";
-    ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.arc(tx(coords[0].x), ty(coords[0].y), 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // Label depot
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 10px Inter, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("D", tx(coords[0].x), ty(coords[0].y));
-
-    // Draw customers
-    const maxDemand = Math.max(...demands.slice(1), 1);
-    for (let i = 1; i < coords.length; i++) {
-      const ratio = demands[i] / maxDemand;
-      const radius = 3 + ratio * 5;
-      ctx.fillStyle = routes && routes.some((r: number[]) => r.includes(i))
-        ? "rgba(255,255,255,0.9)"
-        : "rgba(255,255,255,0.4)";
-      ctx.beginPath();
-      ctx.arc(tx(coords[i].x), ty(coords[i].y), radius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }, [coords, demands, routes]);
-
-  useEffect(() => {
-    draw();
-  }, [draw]);
-
-  useEffect(() => {
-    const onResize = () => draw();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [draw]);
-
-  return (
-    <div ref={containerRef} className="route-canvas-container">
-      <canvas ref={canvasRef} />
-    </div>
-  );
-}
-
-// --- Convergence Chart Component ---
-
-function formatEval(n: number): string {
-  if (n >= 1000) {
-    const k = n / 1000;
-    if (k === Math.floor(k)) return `${k}k`;
-    return `${k.toFixed(1)}k`;
-  }
-  return n.toString();
-}
-
-function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, spikes: number, outerR: number, innerR: number) {
-  let rot = (Math.PI / 2) * 3;
-  const step = Math.PI / spikes;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - outerR);
-  for (let i = 0; i < spikes; i++) {
-    ctx.lineTo(cx + Math.cos(rot) * outerR, cy + Math.sin(rot) * outerR);
-    rot += step;
-    ctx.lineTo(cx + Math.cos(rot) * innerR, cy + Math.sin(rot) * innerR);
-    rot += step;
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-}
-
-function ConvergenceChart({ data, maxEvals, optimal }: { data: { eval: number; cost: number }[][]; maxEvals: number; optimal: number | null }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const rect = container.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = rect.width + "px";
-    canvas.style.height = rect.height + "px";
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.scale(dpr, dpr);
-
-    const w = rect.width;
-    const h = rect.height;
-    const pad = { top: 30, right: 20, bottom: 40, left: 60 };
-    const pw = w - pad.left - pad.right;
-    const ph = h - pad.top - pad.bottom;
-
-    ctx.fillStyle = "#0a0c14";
-    ctx.fillRect(0, 0, w, h);
-
-    if (!data || data.length === 0 || data[0].length === 0) {
-      ctx.fillStyle = "#8b8fa3";
-      ctx.font = "13px Inter, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("Run an experiment to see convergence", w / 2, h / 2);
-      return;
-    }
-
-    let globalMin = Infinity, globalMax = -Infinity;
-    for (const d of data) {
-      for (const point of d) {
-        if (point.cost < globalMin) globalMin = point.cost;
-        if (point.cost > globalMax) globalMax = point.cost;
-      }
-    }
-    // Include optimal value in Y range so the line is always visible
-    if (optimal !== null) {
-      if (optimal < globalMin) globalMin = optimal;
-      if (optimal > globalMax) globalMax = optimal;
-    }
-    if (globalMax - globalMin < 1) {
-      globalMin -= 100;
-      globalMax += 100;
-    }
-
-    function xPos(evalVal: number) {
-      return pad.left + (evalVal / maxEvals) * pw;
-    }
-    function yPos(v: number) {
-      return pad.top + ph - ((v - globalMin) / (globalMax - globalMin)) * ph;
-    }
-
-    // Grid
-    ctx.strokeStyle = "rgba(255,255,255,0.04)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 5; i++) {
-      const y = pad.top + (i / 5) * ph;
-      ctx.beginPath();
-      ctx.moveTo(pad.left, y);
-      ctx.lineTo(w - pad.right, y);
-      ctx.stroke();
-
-      const val = globalMin + (1 - i / 5) * (globalMax - globalMin);
-      ctx.fillStyle = "#8b8fa3";
-      ctx.font = "10px Inter, sans-serif";
-      ctx.textAlign = "right";
-      ctx.textBaseline = "middle";
-      ctx.fillText(Math.round(val).toString(), pad.left - 8, y);
-    }
-
-    // X-axis labels
-    ctx.fillStyle = "#8b8fa3";
-    ctx.font = "10px Inter, sans-serif";
-    ctx.textAlign = "center";
-    for (let i = 0; i <= 4; i++) {
-      const evalVal = (i / 4) * maxEvals;
-      const x = xPos(evalVal);
-      ctx.fillText(formatEval(evalVal), x, h - pad.bottom + 20);
-    }
-    ctx.fillText("Evaluations", w / 2, h - 5);
-
-    // Optimal reference line
-    if (optimal !== null) {
-      const oy = yPos(optimal);
-      ctx.strokeStyle = "#34d399";
-      ctx.lineWidth = 1.5;
-      ctx.globalAlpha = 0.55;
-      ctx.setLineDash([6, 4]);
-      ctx.beginPath();
-      ctx.moveTo(pad.left, oy);
-      ctx.lineTo(w - pad.right, oy);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
-
-      // Label
-      ctx.fillStyle = "#34d399";
-      ctx.font = "bold 9px Inter, sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "bottom";
-      ctx.fillText(`Optimal: ${Math.round(optimal)}`, pad.left + 6, oy - 3);
-    }
-
-    // Draw convergence lines for each run
-    const runColors = ["#6c8cff", "#4ade80", "#fbbf24", "#f87171", "#a78bfa"];
-    for (let r = 0; r < data.length; r++) {
-      const run = data[r];
-      ctx.strokeStyle = runColors[r % runColors.length];
-      ctx.lineWidth = 2;
-      ctx.lineJoin = "round";
-      ctx.globalAlpha = 0.7;
-
-      ctx.beginPath();
-      for (let i = 0; i < run.length; i++) {
-        const x = xPos(run[i].eval);
-        const y = yPos(run[i].cost);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
-
-    // Draw "best found" markers for each run
-    for (let r = 0; r < data.length; r++) {
-      const run = data[r];
-      if (run.length === 0) continue;
-
-      // Find the minimum cost and the first index where it was achieved
-      // (best_cost_history is monotonically non-increasing, so the min is the
-      // last value, but the first occurrence of that min is when it was found)
-      let minCost = run[0].cost;
-      let bestIdx = 0;
-      for (let i = 1; i < run.length; i++) {
-        if (run[i].cost < minCost) {
-          minCost = run[i].cost;
-          bestIdx = i;
-        }
-      }
-
-      const bestPoint = run[bestIdx];
-      const mx = xPos(bestPoint.eval);
-      const my = yPos(bestPoint.cost);
-      const color = runColors[r % runColors.length];
-
-      // Vertical dashed line from the best point down to the x-axis
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.35;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(mx, my);
-      ctx.lineTo(mx, pad.top + ph);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
-
-      // Star marker at the best point
-      ctx.fillStyle = color;
-      ctx.strokeStyle = "#0a0c14";
-      ctx.lineWidth = 2;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 8;
-      drawStar(ctx, mx, my, 5, 7, 3);
-      ctx.shadowBlur = 0;
-
-      // Label with eval count (only if there's room above the marker)
-      if (my > pad.top + 14) {
-        ctx.fillStyle = color;
-        ctx.font = "bold 9px Inter, sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "bottom";
-        ctx.fillText(`★ ${formatEval(bestPoint.eval)}`, mx, my - 10);
-      }
-    }
-
-    // Legend
-    const legendY = pad.top;
-    for (let r = 0; r < data.length; r++) {
-      const x = w - pad.right - 120 + (r % 3) * 45;
-      const y = legendY + Math.floor(r / 3) * 16;
-      ctx.fillStyle = runColors[r % runColors.length];
-      ctx.fillRect(x, y, 10, 10);
-      ctx.fillStyle = "#e1e4ed";
-      ctx.font = "10px Inter, sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.fillText(`Run ${r + 1}`, x + 14, y);
-    }
-  }, [data, maxEvals, optimal]);
-
-  useEffect(() => {
-    draw();
-  }, [draw]);
-
-  useEffect(() => {
-    const onResize = () => draw();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [draw]);
-
-  return (
-    <div ref={containerRef} className="convergence-container">
-      <canvas ref={canvasRef} />
-    </div>
-  );
-}
-
-// --- Stats Panel Component ---
-
-// --- RouteDetails Component ---
-
-function RouteDetails({
-  routes,
-  demands,
-  capacity,
-}: {
-  routes: number[][] | null;
-  demands: number[];
-  capacity: number;
-}) {
-  if (!routes || routes.length === 0) {
-    return <div className="route-detail-list"><div style={{color: "var(--text-muted)", fontSize: "0.8rem", padding: "20px 8px", textAlign: "center"}}>No routes yet</div></div>;
-  }
-
-  return (
-    <div className="route-detail-list">
-      {routes.map((route, ri) => {
-        const load = route.reduce((sum, n) => sum + (demands[n] || 0), 0);
-        const pct = Math.min(100, (load / capacity) * 100);
-        const barColor = pct > 90 ? "#f87171" : pct > 70 ? "#fbbf24" : "#4ade80";
-        const cost = route.length > 0 ? "-" : "0";
-
-        return (
-          <div key={ri}>
-            <div className="route-detail-row">
-              <span
-                className="route-index"
-                style={{ background: ROUTE_COLORS[ri % ROUTE_COLORS.length] }}
-              >
-                {ri + 1}
-              </span>
-              <span className="route-customers" title={route.join(" → ")}>
-                {route.slice(0, 5).join(",")}{route.length > 5 ? ` +${route.length - 5}` : ""}
-              </span>
-              <span className="route-load">{load}/{capacity}</span>
-              <span className="route-cost">{cost}</span>
-            </div>
-            <div className="load-bar-bg">
-              <div className="load-bar-fill" style={{ width: `${pct}%`, background: barColor }} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// --- StatsPanel Component ---
-
-function StatsPanel({
-  results,
-  optimal,
-}: {
-  results: WsExperimentComplete | null;
-  optimal: number | null;
-}) {
-  if (!results) {
-    return (
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">Best</div>
-          <div className="stat-value">-</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Mean</div>
-          <div className="stat-value">-</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Std Dev</div>
-          <div className="stat-value">-</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Optimal</div>
-          <div className="stat-value optimal">-</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Gap %</div>
-          <div className="stat-value">-</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Time</div>
-          <div className="stat-value">-</div>
-        </div>
-      </div>
-    );
-  }
-
-  const gap = optimal ? (((results.best - optimal) / optimal) * 100).toFixed(2) : "-";
-
-  return (
-    <div className="stats-grid">
-      <div className="stat-card">
-        <div className="stat-label">Best</div>
-        <div className="stat-value">{Math.round(results.best)}</div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-label">Mean</div>
-        <div className="stat-value">{Math.round(results.mean)}</div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-label">Std Dev</div>
-        <div className="stat-value">{Math.round(results.std_dev)}</div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-label">Optimal</div>
-        <div className="stat-value optimal">{optimal ?? "-"}</div>
-      </div>
-      <div className="stat-card">
-        <div className="stat-label">Gap %</div>
-        <div className="stat-value">{gap}%</div>
-      </div>
-      <div className="stat-card">        <div className="stat-label">Time</div>
-          <div className="stat-value">{formatETA(results.execution_time)}</div>
-      </div>
-    </div>
-  );
-}
-
-// --- Collapsible Component ---
-
-function Collapsible({ expanded, children }: { expanded: boolean; children: React.ReactNode }) {
-  return (
-    <div className={`collapsible${expanded ? " open" : ""}`}>
-      <div className="collapsible-inner">{children}</div>
-    </div>
-  );
-}
-
-// --- Run Bars Component ---
-
-function RunBars({ totalRuns, currentRun, completedRuns, progress }: { totalRuns: number; currentRun: number; completedRuns: number[]; progress: number }) {
-  return (
-    <div className="run-bars">
-      {Array.from({ length: totalRuns }, (_, i) => {
-        const idx = i + 1;
-        const isCompleted = idx < currentRun || completedRuns.length >= idx;
-        const isCurrent = idx === currentRun;
-        const pct = isCompleted ? 100 : isCurrent ? progress * 100 : 0;
-        return (
-          <div key={i} className="run-bar">
-            <div className={`run-bar-track${isCurrent ? " active" : ""}`}>
-              <div
-                className={`run-bar-fill${isCompleted ? " done" : ""}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+import { ParamField } from "./components/ParamField";
+import { RouteCanvas } from "./components/RouteCanvas";
+import { ConvergenceChart } from "./components/ConvergenceChart";
+import { RouteDetails } from "./components/RouteDetails";
+import { StatsPanel } from "./components/StatsPanel";
+import { Collapsible } from "./components/Collapsible";
+import { RunBars } from "./components/RunBars";
+import { PRESETS, ROUTE_COLORS } from "./config";
+import { formatETA } from "./utils";
+import {
+  InstanceInfo,
+  InstanceSet,
+  Coord,
+  WsExperimentComplete,
+  WsMessage,
+  Preset,
+} from "./types";
+
+// Types and config are imported from shared modules
 
 // --- Main App ---
 
-function formatETA(seconds: number): string {
-  if (seconds <= 0 || !isFinite(seconds)) return "--";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
-
-function useStoredBool(key: string, fallback: boolean): [boolean, (v: boolean) => void] {
+function useStoredBool(
+  key: string,
+  fallback: boolean,
+): [boolean, (v: boolean) => void] {
   const [value, setValue] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem(key);
       return stored !== null ? stored === "true" : fallback;
-    } catch { return fallback; }
+    } catch {
+      return fallback;
+    }
   });
 
   const setStored = (v: boolean) => {
     setValue(v);
-    try { localStorage.setItem(key, String(v)); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(key, String(v));
+    } catch {
+      /* ignore */
+    }
   };
 
   return [value, setStored];
@@ -797,7 +67,9 @@ function App() {
   const [activePreset, setActivePreset] = useState<string>("large");
   const [maxEvals, setMaxEvals] = useState(350000);
   const maxEvalsRef = useRef(maxEvals);
-  useEffect(() => { maxEvalsRef.current = maxEvals; }, [maxEvals]);
+  useEffect(() => {
+    maxEvalsRef.current = maxEvals;
+  }, [maxEvals]);
   const [numRuns, setNumRuns] = useState(5);
   const [crossoverRate, setCrossoverRate] = useState(0.8);
   const [mutationRate, setMutationRate] = useState(0.1);
@@ -811,24 +83,30 @@ function App() {
   const [currentRoutes, setCurrentRoutes] = useState<number[][] | null>(null);
   const [optimal, setOptimal] = useState<number | null>(null);
 
-  const [liveConvergence, setLiveConvergence] = useState<{ eval: number; cost: number }[][]>([]);
+  const [liveConvergence, setLiveConvergence] = useState<
+    { eval: number; cost: number }[][]
+  >([]);
   const [completedRuns, setCompletedRuns] = useState<number[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const startTimeRef = useRef<number>(0);
   const lastUpdateRef = useRef<number>(0);
 
   const [staleSeconds, setStaleSeconds] = useState(0);
-  const [paramsExpanded, setParamsExpanded] = useStoredBool("ui.paramsExpanded", false);
-  const [advancedExpanded, setAdvancedExpanded] = useStoredBool("ui.advancedExpanded", false);
+  const [paramsExpanded, setParamsExpanded] = useStoredBool(
+    "ui.paramsExpanded",
+    false,
+  );
+  const [advancedExpanded, setAdvancedExpanded] = useStoredBool(
+    "ui.advancedExpanded",
+    false,
+  );
 
   function addLog(msg: string) {
     console.log(`[Solver Log] ${msg}`);
   }
 
   const eta =
-    running && progress > 0.01
-      ? (elapsedTime * (1 - progress)) / progress
-      : 0;
+    running && progress > 0.01 ? (elapsedTime * (1 - progress)) / progress : 0;
 
   function applyPreset(key: string) {
     const p = PRESETS[key];
@@ -847,14 +125,14 @@ function App() {
   // Load instances on mount
   useEffect(() => {
     fetch("/api/instances")
-      .then(r => r.json())
+      .then((r) => r.json())
       .then((data: InstanceSet[]) => {
         setInstances(data);
         if (data.length > 0 && data[0].instances.length > 0) {
           setSelectedInstance(data[0].instances[0].name);
         }
       })
-      .catch(err => addLog(`Error loading instances: ${err.message}`));
+      .catch((err) => addLog(`Error loading instances: ${err.message}`));
 
     return () => {
       // cleanup
@@ -867,18 +145,20 @@ function App() {
     setResults(null);
     setCurrentRoutes(null);
     fetch(`/api/instance/${selectedInstance}`)
-      .then(r => r.json())
+      .then((r) => r.json())
       .then((data) => {
-        const formattedCoords = (data.coords || []).map((c: [number, number]) => ({
-          x: c[0],
-          y: c[1]
-        }));
+        const formattedCoords = (data.coords || []).map(
+          (c: [number, number]) => ({
+            x: c[0],
+            y: c[1],
+          }),
+        );
         setCoords(formattedCoords);
         setDemands(data.demands || []);
         setCapacity(data.capacity || 100);
         setOptimal(data.optimal || null);
       })
-      .catch(err => addLog(`Error: ${err.message}`));
+      .catch((err) => addLog(`Error: ${err.message}`));
   }, [selectedInstance]);
 
   // Connect WebSocket
@@ -905,7 +185,7 @@ function App() {
           setTotalRuns(msg.total_runs);
           setProgress(0);
           setCurrentRoutes(null);
-          setLiveConvergence(prev => [...prev, []]);
+          setLiveConvergence((prev) => [...prev, []]);
           addLog(`▶ Run ${msg.run}/${msg.total_runs} - ${msg.instance}`);
           break;
         case "progress":
@@ -916,8 +196,8 @@ function App() {
           if (msg.routes) {
             setCurrentRoutes(msg.routes);
           }
-          setLiveConvergence(prev => {
-            const next = prev.map(arr => [...arr]);
+          setLiveConvergence((prev) => {
+            const next = prev.map((arr) => [...arr]);
             const runIdx = msg.run - 1;
             if (next[runIdx]) {
               next[runIdx].push({ eval: msg.evaluations, cost: msg.best_cost });
@@ -929,8 +209,10 @@ function App() {
           lastUpdateRef.current = Date.now();
           setCurrentRoutes(msg.routes);
           setElapsedTime((Date.now() - startTimeRef.current) / 1000);
-          setCompletedRuns(prev => [...prev, msg.cost]);
-          addLog(`✓ Run ${msg.run}/${totalRuns} completed: ${Math.round(msg.cost)} (vehicles: ${msg.num_vehicles})`);
+          setCompletedRuns((prev) => [...prev, msg.cost]);
+          addLog(
+            `✓ Run ${msg.run}/${totalRuns} completed: ${Math.round(msg.cost)} (vehicles: ${msg.num_vehicles})`,
+          );
           break;
         case "experiment_complete":
           setRunning(false);
@@ -939,7 +221,9 @@ function App() {
           setElapsedTime(msg.execution_time);
           setBestCost(msg.best);
           setProgress(1);
-          addLog(`🏆 Experiment complete! Best: ${Math.round(msg.best)}, Mean: ${Math.round(msg.mean)}`);
+          addLog(
+            `🏆 Experiment complete! Best: ${Math.round(msg.best)}, Mean: ${Math.round(msg.mean)}`,
+          );
           break;
         case "experiment_cancelled":
           setRunning(false);
@@ -993,7 +277,7 @@ function App() {
               elite_count: eliteCount,
               local_search_max_iter: lsMaxIter,
               granular_size: granularSize,
-            })
+            }),
           );
         };
       }, 500);
@@ -1026,7 +310,7 @@ function App() {
         elite_count: eliteCount,
         local_search_max_iter: lsMaxIter,
         granular_size: granularSize,
-      })
+      }),
     );
   }
 
@@ -1056,61 +340,74 @@ function App() {
     return () => clearInterval(id);
   }, [running]);
 
-  const selectedOptimal = instances
-    .flatMap(s => s.instances)
-    .find(i => i.name === selectedInstance)?.optimal ?? optimal;
+  const selectedOptimal =
+    instances
+      .flatMap((s) => s.instances)
+      .find((i) => i.name === selectedInstance)?.optimal ?? optimal;
 
-  const liveResults = results ? results : (running ? (() => {
-    const activeCost = bestCost !== null ? [bestCost] : [];
-    const allCosts = [...completedRuns, ...activeCost];
-    const best = allCosts.length > 0 ? Math.min(...allCosts) : 0;
-    const mean = allCosts.length > 0 ? allCosts.reduce((a, b) => a + b, 0) / allCosts.length : 0;
-    const std_dev = allCosts.length > 1 ? (() => {
-      const m = allCosts.reduce((a, b) => a + b, 0) / allCosts.length;
-      const variance = allCosts.reduce((sum, val) => sum + (val - m) ** 2, 0) / allCosts.length;
-      return Math.sqrt(variance);
-    })() : 0;
-    
-    return {
-      best,
-      mean,
-      std_dev,
-      execution_time: elapsedTime,
-      runs: completedRuns,
-    } as any;
-  })() : null);
+  const liveResults = results
+    ? results
+    : running
+      ? (() => {
+          const activeCost = bestCost !== null ? [bestCost] : [];
+          const allCosts = [...completedRuns, ...activeCost];
+          const best = allCosts.length > 0 ? Math.min(...allCosts) : 0;
+          const mean =
+            allCosts.length > 0
+              ? allCosts.reduce((a, b) => a + b, 0) / allCosts.length
+              : 0;
+          const std_dev =
+            allCosts.length > 1
+              ? (() => {
+                  const m =
+                    allCosts.reduce((a, b) => a + b, 0) / allCosts.length;
+                  const variance =
+                    allCosts.reduce((sum, val) => sum + (val - m) ** 2, 0) /
+                    allCosts.length;
+                  return Math.sqrt(variance);
+                })()
+              : 0;
+
+          return {
+            best,
+            mean,
+            std_dev,
+            execution_time: elapsedTime,
+            runs: completedRuns,
+          } as any;
+        })()
+      : null;
 
   return (
     <>
       <header className="app-header">
         <div>
-          <h1>
-            CVRP Solver
-            <span className="subtitle">HGA · Numba · GLS</span>
-          </h1>
+          <h1>CVRP Solver</h1>
         </div>
         <div className="header-right">
           <div className="preset-group">
-          {Object.entries(PRESETS).map(([key, p]) => (
-            <button
-              key={key}
-              className={`btn-preset ${p.variant} ${activePreset === key ? "active" : ""}`}
-              onClick={() => applyPreset(key)}
-              disabled={running}
-              title={`μ=${p.population_size}  k=${p.tournament_size}  e=${p.elite_count}  γ=${p.granular_size}  pc=${p.crossover_rate}  pm=${p.mutation_rate}`}
-            >
-              <span className="preset-label">{activePreset === key ? p.label : p.label.replace("★ ", "")}</span>
-              <span className="preset-desc">{p.description}</span>
-            </button>
-          ))}
+            {Object.entries(PRESETS).map(([key, p]) => (
+              <button
+                key={key}
+                className={`btn-preset ${p.variant} ${activePreset === key ? "active" : ""}`}
+                onClick={() => applyPreset(key)}
+                disabled={running}
+                title={`μ=${p.population_size}  k=${p.tournament_size}  e=${p.elite_count}  γ=${p.granular_size}  pc=${p.crossover_rate}  pm=${p.mutation_rate}`}
+              >
+                <span className="preset-label">
+                  {activePreset === key ? p.label : p.label.replace("★ ", "")}
+                </span>
+                <span className="preset-desc">{p.description}</span>
+              </button>
+            ))}
           </div>
           <select
             value={selectedInstance}
-            onChange={e => setSelectedInstance(e.target.value)}
+            onChange={(e) => setSelectedInstance(e.target.value)}
           >
-            {instances.map(set => (
+            {instances.map((set) => (
               <optgroup key={set.set} label={`Set ${set.set}`}>
-                {set.instances.map(inst => (
+                {set.instances.map((inst) => (
                   <option key={inst.name} value={inst.name}>
                     {inst.name} (opt: {inst.optimal}, k={inst.num_vehicles})
                   </option>
@@ -1126,10 +423,7 @@ function App() {
             {running ? "Running..." : "▶ Run"}
           </button>
           {running && (
-            <button
-              className="btn btn-danger"
-              onClick={stopExperiment}
-            >
+            <button className="btn btn-danger" onClick={stopExperiment}>
               ■ Stop
             </button>
           )}
@@ -1150,39 +444,49 @@ function App() {
           <div className="card-header">
             <h2>Route Visualization</h2>
             {currentRoutes && (
-              <span className="badge badge-accent">{currentRoutes.length} routes</span>
+              <span className="badge badge-accent">
+                {currentRoutes.length} routes
+              </span>
             )}
           </div>
           <RouteCanvas
             coords={coords}
             demands={demands}
-            capacity={capacity}
             routes={currentRoutes ?? results?.routes ?? null}
-            instanceName={selectedInstance}
           />
         </div>
 
         {/* Right Panel: Accordion Cards */}
         <div className="right-panel">
           {/* Convergence Chart */}
-          <div className="card card-convergence expanded" data-panel="convergence">
+          <div
+            className="card card-convergence expanded"
+            data-panel="convergence"
+          >
             <div className="card-header">
               <h2>Convergence</h2>
             </div>
             <Collapsible expanded={true}>
-            <ConvergenceChart
-              data={liveConvergence.length > 0
-                ? liveConvergence
-                : (results?.convergence ?? []).map(run =>
-                    run.map((cost, i, arr) => ({
-                      eval: arr.length > 1 ? Math.round((i / (arr.length - 1)) * (results?.max_evals ?? maxEvals)) : 0,
-                      cost,
-                    }))
-                  )
-              }
-              maxEvals={results?.max_evals ?? maxEvals}
-              optimal={selectedOptimal}
-            />
+              <ConvergenceChart
+                data={
+                  liveConvergence.length > 0
+                    ? liveConvergence
+                    : (results?.convergence ?? []).map((run) =>
+                        run.map((cost, i, arr) => ({
+                          eval:
+                            arr.length > 1
+                              ? Math.round(
+                                  (i / (arr.length - 1)) *
+                                    (results?.max_evals ?? maxEvals),
+                                )
+                              : 0,
+                          cost,
+                        })),
+                      )
+                }
+                maxEvals={results?.max_evals ?? maxEvals}
+                optimal={selectedOptimal}
+              />
             </Collapsible>
           </div>
 
@@ -1191,23 +495,36 @@ function App() {
             <div className="card-header">
               <h2>Statistics</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {results && <span className="badge badge-success">Complete</span>}
-                {running && <span className="badge badge-warning">Running</span>}
+                {results && (
+                  <span className="badge badge-success">Complete</span>
+                )}
+                {running && (
+                  <span className="badge badge-warning">Running</span>
+                )}
               </div>
             </div>
             <Collapsible expanded={true}>
-            <StatsPanel results={liveResults} optimal={selectedOptimal} />
+              <StatsPanel results={liveResults} optimal={selectedOptimal} />
 
-            {results?.runs && results.runs.length > 0 && (
-              <div style={{ marginTop: 4, fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                Per-run: {results.runs.map(c => Math.round(c)).join(", ")}
-              </div>
-            )}
-            {results?.generations_to_best && (
-              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                Gens to best: {results.generations_to_best.map(g => g).join(", ")}
-              </div>
-            )}
+              {results?.runs && results.runs.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: "0.72rem",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  Per-run: {results.runs.map((c) => Math.round(c)).join(", ")}
+                </div>
+              )}
+              {results?.generations_to_best && (
+                <div
+                  style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}
+                >
+                  Gens to best:{" "}
+                  {results.generations_to_best.map((g) => g).join(", ")}
+                </div>
+              )}
             </Collapsible>
           </div>
 
@@ -1217,89 +534,206 @@ function App() {
               <h2>Route Details</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {currentRoutes && (
-                  <span className="badge badge-purple">{currentRoutes.length} vehicles</span>
+                  <span className="badge badge-purple">
+                    {currentRoutes.length} vehicles
+                  </span>
                 )}
               </div>
             </div>
             <Collapsible expanded={true}>
-            <RouteDetails routes={currentRoutes ?? results?.routes ?? null} demands={demands} capacity={capacity} />
+              <RouteDetails
+                routes={currentRoutes ?? results?.routes ?? null}
+                demands={demands}
+                capacity={capacity}
+              />
             </Collapsible>
           </div>
 
           {/* HGA Parameters */}
-          <div className={`card card-params${paramsExpanded ? " expanded" : ""}`} data-panel="params">
-            <div className="card-header" onClick={() => setParamsExpanded(!paramsExpanded)}>
+          <div
+            className={`card card-params${paramsExpanded ? " expanded" : ""}`}
+            data-panel="params"
+          >
+            <div
+              className="card-header"
+              onClick={() => setParamsExpanded(!paramsExpanded)}
+            >
               <h2>HGA Parameters</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="badge badge-accent">{activePreset ? activePreset.toUpperCase() : "CUSTOM"}</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-                  className={`card-toggle-icon${paramsExpanded ? " open" : ""}`}>
-                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <span className="badge badge-accent">
+                  {activePreset ? activePreset.toUpperCase() : "CUSTOM"}
+                </span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className={`card-toggle-icon${paramsExpanded ? " open" : ""}`}
+                >
+                  <path
+                    d="M4 6L8 10L12 6"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </div>
             </div>
             <Collapsible expanded={paramsExpanded}>
-            {/* Core parameters — always visible when expanded */}
-            <div className="params-grid">
-              <div className="param-field">
-                <label>Population</label>
-                <input type="number" value={popSize} onChange={e => { setPopSize(Math.max(2, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
+              {/* Core parameters — always visible when expanded */}
+              <div className="params-grid">
+                <ParamField
+                  label="Population"
+                  value={popSize}
+                  onChange={(v) => {
+                    setPopSize(v);
+                    setActivePreset("");
+                  }}
+                  disabled={running}
+                  min={2}
+                  tip="Number of candidate solutions in each generation"
+                />
+                <ParamField
+                  label="Tournament"
+                  value={tournamentSize}
+                  onChange={(v) => {
+                    setTournamentSize(v);
+                    setActivePreset("");
+                  }}
+                  disabled={running}
+                  min={1}
+                  tip="Individuals competing when selecting parents"
+                />
+                <ParamField
+                  label="Elite"
+                  value={eliteCount}
+                  onChange={(v) => {
+                    setEliteCount(v);
+                    setActivePreset("");
+                  }}
+                  disabled={running}
+                  min={0}
+                  tip="Top individuals preserved across generations"
+                />
+                <ParamField
+                  label="Granular (GLS)"
+                  value={granularSize}
+                  onChange={(v) => {
+                    setGranularSize(v);
+                    setActivePreset("");
+                  }}
+                  disabled={running}
+                  min={1}
+                  tip="Penalty granularity for Guided Local Search"
+                />
               </div>
-              <div className="param-field">
-                <label>Tournament</label>
-                <input type="number" value={tournamentSize} onChange={e => { setTournamentSize(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-              </div>
-              <div className="param-field">
-                <label>Elite</label>
-                <input type="number" value={eliteCount} onChange={e => { setEliteCount(Math.max(0, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-              </div>
-              <div className="param-field">
-                <label>Granular (GLS)</label>
-                <input type="number" value={granularSize} onChange={e => { setGranularSize(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-              </div>
-            </div>
 
-            {/* Advanced — collapsible sub-section */}
-            <button
-              className={`advanced-toggle${advancedExpanded ? " open" : ""}`}
-              onClick={(e) => { e.stopPropagation(); setAdvancedExpanded(!advancedExpanded); }}
-              aria-expanded={advancedExpanded}
-              aria-label={advancedExpanded ? "Collapse advanced parameters" : "Expand advanced parameters"}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Advanced
-            </button>
+              {/* Advanced — collapsible sub-section */}
+              <button
+                className={`advanced-toggle${advancedExpanded ? " open" : ""}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAdvancedExpanded(!advancedExpanded);
+                }}
+                aria-expanded={advancedExpanded}
+                aria-label={
+                  advancedExpanded
+                    ? "Collapse advanced parameters"
+                    : "Expand advanced parameters"
+                }
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M6 4L10 8L6 12"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Advanced
+              </button>
 
-            {advancedExpanded && (
-            <div className="params-grid">
-              <div className="param-field">
-                <label>Crossover</label>
-                <input type="number" step="0.05" min="0" max="1" value={crossoverRate} onChange={e => { setCrossoverRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
-              </div>
-              <div className="param-field">
-                <label>Mutation</label>
-                <input type="number" step="0.05" min="0" max="1" value={mutationRate} onChange={e => { setMutationRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
-              </div>
-              <div className="param-field">
-                <label>LS Rate</label>
-                <input type="number" step="0.05" min="0" max="1" value={lsRate} onChange={e => { setLsRate(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))); setActivePreset(""); }} disabled={running} />
-              </div>
-              <div className="param-field">
-                <label>LS Max Iter</label>
-                <input type="number" value={lsMaxIter} onChange={e => { setLsMaxIter(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-              </div>
-              <div className="param-field">
-                <label>Max Evaluations</label>
-                <input type="number" value={maxEvals} onChange={e => { setMaxEvals(Math.max(10, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-              </div>
-              <div className="param-field">
-                <label>Runs</label>
-                <input type="number" value={numRuns} onChange={e => { setNumRuns(Math.max(1, parseInt(e.target.value) || 0)); setActivePreset(""); }} disabled={running} />
-              </div>
-            </div>
-            )}
+              {advancedExpanded && (
+                <div className="params-grid">
+                  <ParamField
+                    label="Crossover"
+                    value={crossoverRate}
+                    type="float"
+                    step={0.05}
+                    min={0}
+                    max={1}
+                    onChange={(v) => {
+                      setCrossoverRate(v);
+                      setActivePreset("");
+                    }}
+                    disabled={running}
+                    tip="Probability of recombining two parents"
+                  />
+                  <ParamField
+                    label="Mutation"
+                    value={mutationRate}
+                    type="float"
+                    step={0.05}
+                    min={0}
+                    max={1}
+                    onChange={(v) => {
+                      setMutationRate(v);
+                      setActivePreset("");
+                    }}
+                    disabled={running}
+                    tip="Probability of randomly altering an offspring"
+                  />
+                  <ParamField
+                    label="LS Rate"
+                    value={lsRate}
+                    type="float"
+                    step={0.05}
+                    min={0}
+                    max={1}
+                    onChange={(v) => {
+                      setLsRate(v);
+                      setActivePreset("");
+                    }}
+                    disabled={running}
+                    tip="Probability of applying local search to an offspring"
+                  />
+                  <ParamField
+                    label="LS Max Iter"
+                    value={lsMaxIter}
+                    onChange={(v) => {
+                      setLsMaxIter(v);
+                      setActivePreset("");
+                    }}
+                    disabled={running}
+                    min={1}
+                    tip="Max local-search iterations per application"
+                  />
+                  <ParamField
+                    label="Max Evaluations"
+                    value={maxEvals}
+                    onChange={(v) => {
+                      setMaxEvals(v);
+                      setActivePreset("");
+                    }}
+                    disabled={running}
+                    min={10}
+                    tip="Total fitness evaluations allowed per run"
+                  />
+                  <ParamField
+                    label="Runs"
+                    value={numRuns}
+                    onChange={(v) => {
+                      setNumRuns(v);
+                      setActivePreset("");
+                    }}
+                    disabled={running}
+                    min={1}
+                    tip="Independent algorithm repetitions"
+                  />
+                </div>
+              )}
             </Collapsible>
           </div>
         </div>
@@ -1308,28 +742,45 @@ function App() {
       {/* Status Bar */}
       <div className="status-bar">
         <span>
-          <span className={`status-dot ${running ? "running" : results ? "complete" : "idle"}`} />
-          {running ? `Run ${currentRun}/${totalRuns}` : results ? "Experiment Complete" : "Ready"}
+          <span
+            className={`status-dot ${running ? "running" : results ? "complete" : "idle"}`}
+          />
+          {running
+            ? `Run ${currentRun}/${totalRuns}`
+            : results
+              ? "Experiment Complete"
+              : "Ready"}
         </span>
         {running && (
           <>
-            <span>Best: <strong>{bestCost ? Math.round(bestCost) : "-"}</strong></span>
+            <span>
+              Best: <strong>{bestCost ? Math.round(bestCost) : "-"}</strong>
+            </span>
             <span className="progress-pct">{(progress * 100).toFixed(1)}%</span>
             <div className="progress-bar">
-              <div className="progress-bar-fill" style={{ width: `${(progress * 100).toFixed(1)}%` }} />
+              <div
+                className="progress-bar-fill"
+                style={{ width: `${(progress * 100).toFixed(1)}%` }}
+              />
             </div>
-            <RunBars totalRuns={totalRuns} currentRun={currentRun} completedRuns={completedRuns} progress={progress} />
+            <RunBars
+              totalRuns={totalRuns}
+              currentRun={currentRun}
+              completedRuns={completedRuns}
+              progress={progress}
+            />
             <span className={`stale${staleSeconds > 5 ? " blink" : ""}`}>
               {staleSeconds > 0 ? `${staleSeconds}s ago` : "live"}
             </span>
-            <span className="eta">Elapsed: {formatETA(elapsedTime)} · ~{formatETA(eta)} left</span>
+            <span className="eta">
+              Elapsed: {formatETA(elapsedTime)} · ~{formatETA(eta)} left
+            </span>
           </>
         )}
         <span className={`ws-status ${connected ? "online" : "offline"}`}>
           {connected ? "● WS" : "○ WS"}
         </span>
       </div>
-
     </>
   );
 }
