@@ -1074,7 +1074,7 @@ select:hover,
   transform: translateX(-50%);
   background: var(--bg-elevated);
   color: var(--text);
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   padding: 6px 10px;
   border-radius: var(--radius);
   white-space: nowrap;
